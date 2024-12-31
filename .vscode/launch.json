@@ -1,0 +1,30 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "PrintAst",
+            "request": "launch",
+            "mainClass": "lox.PrintAst",
+            "projectName": "crafting-interpreters_dfdf1539"
+        },
+        {
+            "type": "java",
+            "name": "Lox",
+            "request": "launch",
+            "mainClass": "lox.Lox",
+            "projectName": "crafting-interpreters_dfdf1539"
+        },
+        {
+            "type": "java",
+            "name": "GenerateAst",
+            "request": "launch",
+            "mainClass": "lox.util.GenerateAst",
+            "projectName": "crafting-interpreters_dfdf1539",
+            "args": "thing"
+        }
+    ]
+}
