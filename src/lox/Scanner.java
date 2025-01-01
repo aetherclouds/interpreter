@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-// static import - normal imports aren't necessary within the same package
 import static lox.TokenType.*;
 
 public class Scanner {
@@ -38,7 +37,6 @@ public class Scanner {
         this.source = source;
     }
 
-    /* char is at end if there is no next character */
     private boolean isAtEnd() {
         return current >= source.length();
     }
@@ -53,7 +51,7 @@ public class Scanner {
         return tokens;
     }
 
-    // one call will parse a full lexeme 
+    // each call will parse a full lexeme 
     private void scanToken() {
         char c = advance();
         switch (c) {
@@ -83,7 +81,6 @@ public class Scanner {
                 break;
             case '/':
                 if (match('/')) {
-                    // i hate java, why use all these redundant methods??
                     while (!isAtEnd() && peek() != '\n') advance();
                 } else if (match('*')) {
                     for (;;) {

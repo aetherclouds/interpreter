@@ -9,16 +9,19 @@ import java.nio.file.Paths;
 class GenerateAst {
     public static void main(String[] args) throws IOException {
         defineAst("Expr", new String[]{
-            "Binary     : Expr left, Token operator, Expr right",
             "Grouping   : Expr expression",
+            "Binary     : Expr left, Token operator, Expr right",
+            "Unary      : Token operator, Expr right",
+            "Variable   : Token name",
             // NOTE: are tokens so short lived that we're already replacing them by `Object` here?
             "Literal    : Object value",
-            "Unary      : Token operator, Expr right"
         });
 
         defineAst("Stmt", new String[]{
-            "Expression : Expr expression",// an expression is also a statement (but not vice-versa)
-            "Print      : Expr expression"
+            "Expression : Expr expression", // an expression is also a statement (but not vice-versa)
+            "Print      : Expr expression",
+            // declarations
+            "Var        : Token name, Expr initializer",
         });
     }    
 

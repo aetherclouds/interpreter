@@ -7,8 +7,8 @@ import lox.Stmt.*;
 
 public class Interpreter implements Expr.Visitor<Object>,
                                     Stmt.Visitor<Void> {
-    Interpreter() {};
-
+    
+    Environment environment = new Environment();
     static class RuntimeError extends RuntimeException {
         Token token;
         RuntimeError(Token token, String message) {
@@ -28,8 +28,8 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     public Object evaluate(Expr expr) {
-        // return null == expr ? null : expr.accept(this);
-        return expr.accept(this);
+        return null == expr ? null : expr.accept(this);
+        // return expr.accept(this);
     }
 
     public void execute(Stmt stmt) {
@@ -58,10 +58,9 @@ public class Interpreter implements Expr.Visitor<Object>,
     public boolean isEqual(Object a, Object b) {
         /* Java's `==` may work for primitives, but for Strings it will compare pointers,
          * which way work when strings are interned but it's still undesirable. also, we
-         * need to check for null before calling .equals, which is implemented per Object,
+         * need to check for null before calling .equals, which may be overridden by Object,
          * and for Strings, it actually compares the contents.
          */
-        // avoid null ptr exception (when calling method `.equals`)
         if (null == a) return null == b ? true : false; 
         return a.equals(b);
     }
@@ -69,6 +68,11 @@ public class Interpreter implements Expr.Visitor<Object>,
     @Override
     public Object visitGroupingExpr(GroupingExpr expr) {
         return evaluate(expr.expression);
+    }
+
+    @Override
+    public Object visitVariableExpr(VariableExpr expr) {
+        return environment.get(expr.name.lexeme);
     }
 
     @Override
@@ -86,8 +90,6 @@ public class Interpreter implements Expr.Visitor<Object>,
                 // let java do the work of casting our dynamic object
                 checkNumberOperand(expr.operator, right); 
                 return -(double)right;
-            // default:
-            //     break;
         }
         return null; // TODO: remove this
     }
@@ -149,6 +151,12 @@ public class Interpreter implements Expr.Visitor<Object>,
     @Override
     public Void visitPrintStmt(PrintStmt stmt) {
         System.out.println(evaluate(stmt.expression));
+        return null;
+    }
+
+    @Override
+    public Void visitVarStmt(VarStmt stmt) {
+        environment.define(stmt.name.lexeme, evaluate(stmt.initializer));
         return null;
     }
 }

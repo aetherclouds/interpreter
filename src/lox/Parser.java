@@ -21,18 +21,11 @@ public class Parser {
 
     private boolean isAtEnd() {return tokens.get(current).type == EOF;}
 
-    Token peek() {return isAtEnd() ? null : tokens.get(current);}
+    Token peek() {return tokens.get(current);}
 
-    Token advance() {return isAtEnd() ? null : tokens.get(current++);}
+    Token advance() {if (!isAtEnd()) ++current; return previous();}
 
     Token previous() {return tokens.get(current-1);}
-
-    // private boolean matchSequence(TokenType... tokenTypes) {
-    //     for (TokenType tokenType : tokenTypes) {
-    //         if (tokenType != advance().type) return false;
-    //     }
-    //     return true;
-    // }
 
     private boolean match(TokenType... tokenTypes) {
         Token match = peek();
@@ -80,9 +73,25 @@ public class Parser {
     * this is possible because the parts that really make the grammar rules
     * unique, are optional. so we can "drill down" until we hit literals. */
 
-    /* an interesting edge case is when some character is a valid token (passes scanner)
-    * but is not a valid nor invalid/error production in the parser. 
-    * for example, `1=` produces the AST `1.0` and no errors (as of last edit). */
+    /* declarations have a higher precedence because, while they are statements, 
+    * we don't want them coming after others (like an if clause) */
+    private Stmt declaration() {
+        try {
+            if (match(VAR)) {
+                Token name = consume(IDENTIFIER, "\"var\" declaration must be a valid identifier, as in /[a-zA-Z][a-zA-Z0-9]*/");
+                Expr initializer = null;
+                if (match(EQUAL)) {
+                    initializer = expression();
+                }
+                consume(SEMICOLON, "expected ';' after declaration");
+                return new VarStmt(name, initializer);
+            }
+            return statement();
+        } catch (ParseError error) {
+            synchronize();
+            return null;
+        }
+    }
 
     private Stmt statement() {
         if (match(PRINT)) {
@@ -169,7 +178,7 @@ public class Parser {
     }
 
     private Expr primary() {
-        if (match(RIGHT_PAREN)) 
+        if (match(IDENTIFIER)) return new VariableExpr(previous());
         if (match(RIGHT_PAREN)) 
             throw error(previous(), "closing parenthesis don't match an opening parenthesis");
         if (match(
@@ -191,14 +200,14 @@ public class Parser {
     }
 
     Iterable<Stmt> parse() {
-        // try {
+        try {
             List<Stmt> statements = new ArrayList<>();
             while (!isAtEnd()) {
-                statements.add(statement());
+                statements.add(declaration());
             }
             return statements;
-        // } catch (ParseError error) {
-        //     Lox.error(null, null);
-        // }
+        } catch (ParseError error) {
+            return null;
+        }
     }
 }

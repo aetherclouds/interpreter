@@ -14,7 +14,7 @@ import java.nio.charset.Charset;
 class Lox {
     static private Path file;
     /* interpreter needs to maintain state, so we can 
-    * retain variables and other state across multiple, separate evaulations.
+    * retain variables and other state across multiple evaulations.
     * (i.e. REPL lines, modules) */
     static private final Interpreter interpreter = new Interpreter();
     static boolean hadError = false;
@@ -38,18 +38,12 @@ class Lox {
     }
 
     private static void runPrompt() throws IOException {
-        // inputstream vs outputstream: one exclusively has read methods, the other, write.
         BufferedReader input = new BufferedReader(new InputStreamReader(System. in));
-        /* istreamreader vs bufferedreader: stream thinks in characters, i.e. immediate future.
-         * that's why it doesn't have a readLine method, whereas bufferedreader does, since it'll
-         * probably also reaed every single incoming character, but it has a buffer to store
-         * non-newline characters in until then
-         */
         for (;;) {
-            // return value excludes \r and \n as per java docs
             System.out.print("> ");
+            // return value excludes \r and \n as per java docs
             String line = input.readLine();
-            if (line == null) break; // EOF ^D
+            if (line == null) break; // EOF/^D
             run(line);
             hadError = false;
         }
@@ -62,13 +56,9 @@ class Lox {
 
         Parser parser = new Parser(tokens);
         Iterable<Stmt> statements = parser.parse();
-        // if (null == statements) {
-        //     System.err.println("could not parse file or REPL input");
-        //     return;
-        // }
         if (hadError) return;
-        
         // System.out.println(new PrintAst().output(expression));
+        
         interpreter.interpret(statements);
         if (hadRuntimeError) return;
     }

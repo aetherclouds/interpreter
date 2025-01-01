@@ -54,4 +54,9 @@ class PrintAst implements Visitor<String> {
         );
         System.out.println(new PrintAst().output(expression));
     }
+
+    @Override
+    public String visitVariableExpr(VariableExpr expr) {
+        return expr.name.lexeme;
+    }
 }
