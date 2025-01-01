@@ -156,7 +156,8 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Void visitVarStmt(VarStmt stmt) {
-        environment.define(stmt.name.lexeme, evaluate(stmt.initializer));
+        // NOTE: evaluating `stmt.initializer` here means we can't assign by reference
+        environment.define(stmt.name.lexeme, null == stmt.initializer ? null /* for declaration */ : evaluate(stmt.initializer));
         return null;
     }
 }

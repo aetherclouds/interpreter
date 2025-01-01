@@ -57,7 +57,7 @@ class Lox {
         Parser parser = new Parser(tokens);
         Iterable<Stmt> statements = parser.parse();
         if (hadError) return;
-        // System.out.println(new PrintAst().output(expression));
+        // System.out.println(new PrintAst().output(statements));
         
         interpreter.interpret(statements);
         if (hadRuntimeError) return;
