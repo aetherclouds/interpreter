@@ -78,13 +78,19 @@ public class Parser {
     private Stmt declaration() {
         try {
             if (match(VAR)) {
-                Token name = consume(IDENTIFIER, "\"var\" declaration must be a valid identifier, as in /[a-zA-Z][a-zA-Z0-9]*/");
-                Expr initializer = null;
-                if (match(EQUAL)) {
-                    initializer = expression();
+                // Token name = consume(IDENTIFIER, "\"var\" declaration must be a valid identifier, as in /[a-zA-Z][a-zA-Z0-9]*/");
+                // since we already matched VAR, we already know waht follows MUST be an assignable (VariableExpr) 
+                // so instead of "drilling down" the grammar, go straight for `primary` (which can output a VariableExpr)
+                Expr name = primary();
+                if (name instanceof VariableExpr) {
+                    Expr initializer = null;
+                    if (match(EQUAL)) {
+                        initializer = expression();
+                    }
+                    consume(SEMICOLON, "expected ';' after declaration");
+                    return new VarStmt(((VariableExpr)name).name, initializer);
                 }
-                consume(SEMICOLON, "expected ';' after declaration");
-                return new VarStmt(name, initializer);
+                error(previous(), "invalid variable declaration target following `var`");
             }
             return statement();
         } catch (ParseError error) {
@@ -106,7 +112,7 @@ public class Parser {
     }
     
     private Expr expression() {
-        Expr expr = equality();
+        Expr expr = assignment();
         // if (match(COMMA)) {
         //     expr = new BinaryExpr(expr, previous(), expression());
         // }
@@ -120,6 +126,20 @@ public class Parser {
         // } else while(match(COMMA)) {
         //     expr = new BinaryExpr(expr, previous(), equality());
         // }
+        return expr;
+    }
+
+    private Expr assignment() {
+        Expr expr = equality();
+        if (match(EQUAL)) {
+            Token equal = previous();
+            Expr value = equality();
+
+            if (expr instanceof VariableExpr) {
+                return new AssignmentExpr(((VariableExpr)expr).name, value);
+            }
+            error(equal, "invalid assignment target");
+        }
         return expr;
     }
 
@@ -178,7 +198,7 @@ public class Parser {
     }
 
     private Expr primary() {
-        if (match(IDENTIFIER)) return new VariableExpr(previous());
+        if (match(IDENTIFIER)) return new VariableExpr(previous()); // on assigments, this should be the only thing that's returned from the left-side
         if (match(RIGHT_PAREN)) 
             throw error(previous(), "closing parenthesis don't match an opening parenthesis");
         if (match(

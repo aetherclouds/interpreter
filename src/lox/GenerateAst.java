@@ -11,9 +11,9 @@ class GenerateAst {
         defineAst("Expr", new String[]{
             "Grouping   : Expr expression",
             "Binary     : Expr left, Token operator, Expr right",
+            "Assignment : Token name, Expr value", // we don't use Binary because `left` can't be an expression - we need a new node type in the AST
             "Unary      : Token operator, Expr right",
             "Variable   : Token name",
-            // NOTE: are tokens so short lived that we're already replacing them by `Object` here?
             "Literal    : Object value",
         });
 

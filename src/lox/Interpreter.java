@@ -72,7 +72,7 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitVariableExpr(VariableExpr expr) {
-        return environment.get(expr.name.lexeme);
+        return environment.get(expr.name);
     }
 
     @Override
@@ -92,6 +92,12 @@ public class Interpreter implements Expr.Visitor<Object>,
                 return -(double)right;
         }
         return null; // TODO: remove this
+    }
+
+    @Override
+    public Object visitAssignmentExpr(AssignmentExpr expr) {
+        environment.define(expr.name, evaluate(expr.value));
+        return expr.value;
     }
 
     @Override
@@ -156,8 +162,8 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Void visitVarStmt(VarStmt stmt) {
-        // NOTE: evaluating `stmt.initializer` here means we can't assign by reference
-        environment.define(stmt.name.lexeme, null == stmt.initializer ? null /* for declaration */ : evaluate(stmt.initializer));
+        // NOTE: evaluating `stmt.initializer` in-place means we can't assign by reference
+        environment.define(stmt.name, null == stmt.initializer ? null /* for declaration */ : evaluate(stmt.initializer));
         return null;
     }
 }
