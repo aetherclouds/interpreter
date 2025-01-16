@@ -3,15 +3,27 @@ package lox;
 
 abstract class Stmt {
     interface Visitor<R> {
-        R visitExpressionStmt(ExpressionStmt stmt);
-        R visitPrintStmt(PrintStmt stmt);
-        R visitVarStmt(VarStmt stmt);
+        R visitBlockStmt(Block stmt);
+        R visitExpressionStmt(Expression stmt);
+        R visitPrintStmt(Print stmt);
+        R visitVarStmt(Var stmt);
     }
     abstract <R> R accept(Visitor<R> visitor);
 
-    static class ExpressionStmt extends Stmt {
+    static class Block extends Stmt {
+        final Iterable<Stmt> statements;
+        Block(Iterable<Stmt> statements) {
+            this.statements = statements;
+        }
+        @Override
+        <R> R accept(Visitor<R> visitor) {
+            return visitor.visitBlockStmt(this);
+        }
+    }
+
+    static class Expression extends Stmt {
         final Expr expression;
-        ExpressionStmt(Expr expression) {
+        Expression(Expr expression) {
             this.expression = expression;
         }
         @Override
@@ -20,9 +32,9 @@ abstract class Stmt {
         }
     }
 
-    static class PrintStmt extends Stmt {
+    static class Print extends Stmt {
         final Expr expression;
-        PrintStmt(Expr expression) {
+        Print(Expr expression) {
             this.expression = expression;
         }
         @Override
@@ -31,10 +43,10 @@ abstract class Stmt {
         }
     }
 
-    static class VarStmt extends Stmt {
+    static class Var extends Stmt {
         final Token name;
         final Expr initializer;
-        VarStmt(Token name, Expr initializer) {
+        Var(Token name, Expr initializer) {
             this.name = name;
             this.initializer = initializer;
         }

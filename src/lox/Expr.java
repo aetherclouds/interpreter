@@ -3,18 +3,18 @@ package lox;
 
 abstract class Expr {
     interface Visitor<R> {
-        R visitGroupingExpr(GroupingExpr expr);
-        R visitAssignmentExpr(AssignmentExpr expr);
-        R visitBinaryExpr(BinaryExpr expr);
-        R visitUnaryExpr(UnaryExpr expr);
-        R visitVariableExpr(VariableExpr expr);
-        R visitLiteralExpr(LiteralExpr expr);
+        R visitGroupingExpr(Grouping expr);
+        R visitBinaryExpr(Binary expr);
+        R visitAssignmentExpr(Assignment expr);
+        R visitUnaryExpr(Unary expr);
+        R visitVariableExpr(Variable expr);
+        R visitLiteralExpr(Literal expr);
     }
     abstract <R> R accept(Visitor<R> visitor);
 
-    static class GroupingExpr extends Expr {
+    static class Grouping extends Expr {
         final Expr expression;
-        GroupingExpr(Expr expression) {
+        Grouping(Expr expression) {
             this.expression = expression;
         }
         @Override
@@ -23,24 +23,11 @@ abstract class Expr {
         }
     }
 
-    static class AssignmentExpr extends Expr {
-        final Token name;
-        final Expr value;
-        AssignmentExpr(Token name, Expr value) {
-            this.name = name;
-            this.value = value;
-        }
-        @Override
-        <R> R accept(Visitor<R> visitor) {
-            return visitor.visitAssignmentExpr(this);
-        }
-    }
-
-    static class BinaryExpr extends Expr {
+    static class Binary extends Expr {
         final Expr left;
         final Token operator;
         final Expr right;
-        BinaryExpr(Expr left, Token operator, Expr right) {
+        Binary(Expr left, Token operator, Expr right) {
             this.left = left;
             this.operator = operator;
             this.right = right;
@@ -51,10 +38,23 @@ abstract class Expr {
         }
     }
 
-    static class UnaryExpr extends Expr {
+    static class Assignment extends Expr {
+        final Token name;
+        final Expr value;
+        Assignment(Token name, Expr value) {
+            this.name = name;
+            this.value = value;
+        }
+        @Override
+        <R> R accept(Visitor<R> visitor) {
+            return visitor.visitAssignmentExpr(this);
+        }
+    }
+
+    static class Unary extends Expr {
         final Token operator;
         final Expr right;
-        UnaryExpr(Token operator, Expr right) {
+        Unary(Token operator, Expr right) {
             this.operator = operator;
             this.right = right;
         }
@@ -64,9 +64,9 @@ abstract class Expr {
         }
     }
 
-    static class VariableExpr extends Expr {
+    static class Variable extends Expr {
         final Token name;
-        VariableExpr(Token name) {
+        Variable(Token name) {
             this.name = name;
         }
         @Override
@@ -75,9 +75,9 @@ abstract class Expr {
         }
     }
 
-    static class LiteralExpr extends Expr {
+    static class Literal extends Expr {
         final Object value;
-        LiteralExpr(Object value) {
+        Literal(Object value) {
             this.value = value;
         }
         @Override

@@ -18,3 +18,4 @@ run `make run ARGS=<FILENAME>`
 - fully implement `cond ? branch1 : branch2` expressions
 ## ideas
 - throw some kind of EndOfExpression exception during parsing so we can skip the upward chain of redundant checks when we know the next token (EOF) won't match anything
+- parser with global "level" state, or match error production for extra closing bracket (ex.: `{}}`)

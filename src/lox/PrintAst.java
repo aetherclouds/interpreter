@@ -4,7 +4,7 @@ import lox.Expr.*;
 
 class PrintAst implements Visitor<String> {
     @Override
-    public String visitBinaryExpr(BinaryExpr expr) {
+    public String visitBinaryExpr(Expr.Binary expr) {
         return parenthesize(
             expr.operator.lexeme,
             expr.left,
@@ -13,17 +13,17 @@ class PrintAst implements Visitor<String> {
     }
 
     @Override
-    public String visitGroupingExpr(GroupingExpr expr) {
+    public String visitGroupingExpr(Expr.Grouping expr) {
         return parenthesize("group", expr.expression);
     }
 
     @Override
-    public String visitLiteralExpr(LiteralExpr expr) {
+    public String visitLiteralExpr(Expr.Literal expr) {
         return expr.value.toString();
     }
 
     @Override
-    public String visitUnaryExpr(UnaryExpr expr) {
+    public String visitUnaryExpr(Expr.Unary expr) {
         return parenthesize(expr.operator.lexeme, expr.right);
     }
 
@@ -42,21 +42,21 @@ class PrintAst implements Visitor<String> {
     }
 
     public static void main(String[] args) {
-        Expr expression = new BinaryExpr(
-            new UnaryExpr(
+        Expr expression = new Expr.Binary(
+            new Expr.Unary(
                 new Token(TokenType.MINUS, "-", null, 0),
-                new LiteralExpr(125)
+                new Expr.Literal(125)
             ),
             new Token(TokenType.STAR, "*", null, 0),
-            new GroupingExpr(
-                new LiteralExpr(42.6)
+            new Expr.Grouping(
+                new Expr.Literal(42.6)
             )
         );
         System.out.println(new PrintAst().output(expression));
     }
 
     @Override
-    public String visitVariableExpr(VariableExpr expr) {
+    public String visitVariableExpr(Expr.Variable expr) {
         return expr.name.lexeme;
     }
 }

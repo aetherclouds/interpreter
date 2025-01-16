@@ -18,7 +18,8 @@ class GenerateAst {
         });
 
         defineAst("Stmt", new String[]{
-            "Expression : Expr expression", // an expression is also a statement (but not vice-versa)
+            "Block      : Iterable<Stmt> statements",
+            "Expression : Expr expression", // expressions by themselves can be statements. ex.: `1 + 2;`, `a = 10;`
             "Print      : Expr expression",
             // declarations
             "Var        : Token name, Expr initializer",
@@ -54,19 +55,19 @@ class GenerateAst {
         writer.println("    interface Visitor<R> {");
         for (String type : types) {
             String typeName = type.split(":")[0].strip();
-            writer.println("        R visit"+typeName+baseName+"("+typeName+baseName+" "+baseName.toLowerCase()+");");
+            writer.println("        R visit"+typeName+baseName+"("+typeName+" "+baseName.toLowerCase()+");");
         }
         writer.println("    }");
     }
 
     private static void defineType(PrintWriter writer, String baseName, String className, String fields) {
         writer.println();
-        writer.println("    static class "+className+baseName+" extends "+baseName+" {");
+        writer.println("    static class "+className+" extends "+baseName+" {");
         String[] fieldsAsArr = fields.split(",");
         for (String field : fieldsAsArr) {
             writer.println("        final "+field.trim()+";");
         }
-        writer.println("        "+className+baseName+"("+fields+") {");
+        writer.println("        "+className+"("+fields+") {");
         for (String field : fieldsAsArr) {
             String fieldName = field.trim().split(" ")[1];
             writer.println("            this."+fieldName+" = "+fieldName+";");

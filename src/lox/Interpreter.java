@@ -1,9 +1,5 @@
 package lox;
 
-import lox.TokenType.*;
-import lox.Expr.*;
-import lox.Stmt.*;
-
 
 public class Interpreter implements Expr.Visitor<Object>,
                                     Stmt.Visitor<Void> {
@@ -20,6 +16,8 @@ public class Interpreter implements Expr.Visitor<Object>,
     public void interpret(Iterable<Stmt> statements) {   
         try {
             for (Stmt stmt : statements) {
+                if (stmt instanceof Stmt.Expression) 
+                System.out.println(evaluate(((Stmt.Expression)stmt).expression));
                 execute(stmt);
             }
         } catch (RuntimeError error) {
@@ -27,35 +25,35 @@ public class Interpreter implements Expr.Visitor<Object>,
         }
     }
 
-    public Object evaluate(Expr expr) {
+    private Object evaluate(Expr expr) {
         return null == expr ? null : expr.accept(this);
         // return expr.accept(this);
     }
 
-    public void execute(Stmt stmt) {
+    private void execute(Stmt stmt) {
         stmt.accept(this);
     }
 
-    boolean isTruthy(Object object) {
+    private boolean isTruthy(Object object) {
         if (null == object) return false;
         if (object instanceof Boolean) return (boolean)object;
         return true;
     }
 
     // `operator` just for error logging, not actually used in the logic
-    void checkNumberOperand(Token operator, Object operand) {
+    private void checkNumberOperand(Token operator, Object operand) {
         if (!(operand instanceof Double))
             throw new RuntimeError(operator, "operand must be a number.");
     }
 
-    void checkNumberOperands(Token operator, Object left, Object right) {
+    private void checkNumberOperands(Token operator, Object left, Object right) {
         if (!(left instanceof Double))
             throw new RuntimeError(operator, "left operand must be a number.");
         if (!(right instanceof Double))
             throw new RuntimeError(operator, "right operand must be a number.");
     }
 
-    public boolean isEqual(Object a, Object b) {
+    private boolean isEqual(Object a, Object b) {
         /* Java's `==` may work for primitives, but for Strings it will compare pointers,
          * which way work when strings are interned but it's still undesirable. also, we
          * need to check for null before calling .equals, which may be overridden by Object,
@@ -66,22 +64,22 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
-    public Object visitGroupingExpr(GroupingExpr expr) {
+    public Object visitGroupingExpr(Expr.Grouping expr) {
         return evaluate(expr.expression);
     }
 
     @Override
-    public Object visitVariableExpr(VariableExpr expr) {
+    public Object visitVariableExpr(Expr.Variable expr) {
         return environment.get(expr.name);
     }
 
     @Override
-    public Object visitLiteralExpr(LiteralExpr expr) {
+    public Object visitLiteralExpr(Expr.Literal expr) {
         return expr.value;
     }
 
     @Override
-    public Object visitUnaryExpr(UnaryExpr expr) {
+    public Object visitUnaryExpr(Expr.Unary expr) {
         Object right = evaluate(expr.right);
         switch(expr.operator.type) {
             case BANG:
@@ -95,25 +93,21 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
-    public Object visitAssignmentExpr(AssignmentExpr expr) {
-        environment.define(expr.name, evaluate(expr.value));
-        return expr.value;
+    public Object visitAssignmentExpr(Expr.Assignment expr) {
+        Object value = evaluate(expr.value);
+        environment.assign(expr.name, value);
+        return value;
     }
 
     @Override
-    public Object visitBinaryExpr(BinaryExpr expr) {
+    public Object visitBinaryExpr(Expr.Binary expr) {
         Object left = evaluate(expr.left);
         Object right = evaluate(expr.right);
         switch(expr.operator.type) {
-            // case QUESTION:
-            //     Object test = evaluate(expr.left);
-                // we'll n
-                // evaluate(isTruthy(test) ? expr.right
-
             case BANG_EQUAL:
-                return !left.equals(right);
+                return !isEqual(left, right);
             case EQUAL_EQUAL:
-                return left.equals(right);
+                return isEqual(left, right);
 
             case GREATER:
                 checkNumberOperands(expr.operator, left, right); 
@@ -149,20 +143,30 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
-    public Void visitExpressionStmt(ExpressionStmt stmt) {
+    public Void visitExpressionStmt(Stmt.Expression stmt) {
         evaluate(stmt.expression);
         return null;
     }
 
     @Override
-    public Void visitPrintStmt(PrintStmt stmt) {
+    public Void visitPrintStmt(Stmt.Print stmt) {
         System.out.println(evaluate(stmt.expression));
         return null;
     }
 
     @Override
-    public Void visitVarStmt(VarStmt stmt) {
-        // NOTE: evaluating `stmt.initializer` in-place means we can't assign by reference
+    public Void visitBlockStmt(Stmt.Block stmt) {
+        environment = new Environment(environment);
+        for (Stmt statement : stmt.statements) {
+            execute(statement);
+        }
+        environment = environment.enclosing;
+        return null;
+    }
+
+    @Override
+    public Void visitVarStmt(Stmt.Var stmt) {
+        // NOTE: evaluating `stmt.initializer` in-place means we're always assigning by value, not reference'
         environment.define(stmt.name, null == stmt.initializer ? null /* for declaration */ : evaluate(stmt.initializer));
         return null;
     }

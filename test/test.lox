@@ -1,2 +1,9 @@
 var s0medecl4ration = "some "+"value";
 print s0medecl4ration;
+s0medecl4ration = 419;
+print s0medecl4ration;
+
+var x;
+print x;
+{var y = x=((((4))));
+print z = x;}

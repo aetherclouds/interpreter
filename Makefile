@@ -1,17 +1,18 @@
 # JCFLAGS := -g
+ARGS := 
 
 .PHONY: run runjar clean
 .SECONDARY: # all targets are secondary (intermediate files are not removed)
 
 # we have a `bin/lox/*` structure (instead of just `bin/*` to match the classpath structure `lox.*`
 run: bin/lox/Lox.class
-	java -cp bin lox.Lox
+	java -cp bin lox.Lox $(ARGS)
 
 run-% : bin/lox/%.class
-	java -cp bin lox.$(subst /,.,$*) $(RUNARGS)
+	java -cp bin lox.$(subst /,.,$*) $(ARGS)
 
 runjar: bin/lox.jar
-	java -jar bin/lox.jar $(RUNARGS)
+	java -jar bin/lox.jar $(ARGS)
 
 bin/lox.jar: bin/lox/Lox.class
 	jar -cvfe $@ lox.Lox -C bin/ lox/ # no need to pass specific files, it expands dirs (i.e. `lox/`)
