@@ -145,6 +145,16 @@ public class Parser {
     }
 
     private Stmt statement() {
+        if (match(CONTINUE)) {
+            Token stmt = previous();
+            consume(SEMICOLON, "expected ';' instead, after print statement");
+            return new Stmt.Continue(stmt);
+        }
+        if (match(BREAK)) {
+            Token stmt = previous();
+            consume(SEMICOLON, "expected ';' instead, after print statement");
+            return new Stmt.Break(stmt);
+        }
         if (match(LEFT_BRACE)) {
             return new Stmt.Block(block());
         }

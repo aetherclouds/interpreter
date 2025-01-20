@@ -1,6 +1,8 @@
 package lox;
 
 import lox.Expr.LogicalBinary;
+import lox.Stmt.Break;
+import lox.Stmt.Continue;
 import lox.Stmt.While;
 
 public class Interpreter implements Expr.Visitor<Object>,
@@ -15,6 +17,16 @@ public class Interpreter implements Expr.Visitor<Object>,
         }   
     };
 
+    static class ContinueException extends RuntimeException {
+        Token token;
+        ContinueException(Token token) {this.token = token;}
+    };
+
+    static class BreakException extends RuntimeException {
+        Token token;
+        BreakException(Token token) {this.token = token;}
+    };
+
     public void interpret(Iterable<Stmt> statements) {   
         try {
             for (Stmt stmt : statements) {
@@ -27,6 +39,12 @@ public class Interpreter implements Expr.Visitor<Object>,
             }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
+        /* not caught by a `while` or `for` loop, which means user is using these statements at global scope.
+        * (rather than inside a loop)  */
+        } catch (ContinueException e) {
+            Lox.runtimeError(new RuntimeError(e.token, "statement may only be used inside a loop"));
+        } catch (BreakException e) {
+            Lox.runtimeError(new RuntimeError(e.token, "statement may only be used inside a loop"));
         }
     }
 
@@ -218,8 +236,25 @@ public class Interpreter implements Expr.Visitor<Object>,
     @Override
     public Void visitWhileStmt(While stmt) {
         while (isTruthy(evaluate(stmt.condition))) {
-            execute(stmt.body);
+            // this is probably bad for performance, but so is making an interpreter in Java
+            try {
+                execute(stmt.body);
+            } catch (ContinueException e) {
+                continue;
+            } catch (BreakException e) {
+                break;
+            }
         }
         return null;
+    }
+
+    @Override
+    public Void visitContinueStmt(Continue stmt) {
+        throw new ContinueException(stmt.token);
+    }
+
+    @Override
+    public Void visitBreakStmt(Break stmt) {
+        throw new BreakException(stmt.token);
     }
 }

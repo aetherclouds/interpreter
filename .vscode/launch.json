@@ -6,6 +6,13 @@
     "configurations": [
         {
             "type": "java",
+            "name": "GenerateAst",
+            "request": "launch",
+            "mainClass": "lox.GenerateAst",
+            "projectName": "crafting-interpreters_dfdf1539"
+        },
+        {
+            "type": "java",
             "name": "PrintAst",
             "request": "launch",
             "mainClass": "lox.PrintAst",

@@ -9,14 +9,14 @@ import java.nio.file.Paths;
 class GenerateAst {
     public static void main(String[] args) throws IOException {
         defineAst("Expr", new String[]{
-            "Grouping   : Expr expression",
+            "Grouping     : Expr expression",
             "LogicalBinary: Expr left, Token operator, Expr right",
-            "Binary     : Expr left, Token operator, Expr right",
-            "Assignment : Token name, Expr value", // we don't use Binary because `left` can't be an expression - we need a new node type in the AST
-            "Unary      : Token operator, Expr right",
-            "Variable   : Token name",
-            "Literal    : Object value",
-            "Ternary    : Expr condition, Expr thenExpr, Expr elseExpr",
+            "Binary       : Expr left, Token operator, Expr right",
+            "Assignment   : Token name, Expr value", // we don't use Binary because `left` can't be an expression - we need a new node type in the AST
+            "Unary        : Token operator, Expr right",
+            "Variable     : Token name",
+            "Literal      : Object value",
+            "Ternary      : Expr condition, Expr thenExpr, Expr elseExpr",
         });
 
         defineAst("Stmt", new String[]{
@@ -25,6 +25,8 @@ class GenerateAst {
             "Print      : Expr expression",
             "If         : Expr condition, Stmt thenBranch, Stmt elseBranch",
             "While      : Expr condition, Stmt body",
+            "Continue   : Token token",
+            "Break      : Token token",
             // declarations
             "Var        : Token name, Expr initializer",
         });
@@ -47,8 +49,14 @@ class GenerateAst {
         defineVisitor(writer, baseName, types);
         writer.println("    abstract <R> R accept(Visitor<R> visitor);");
         for (String type : types) {
-            String className = type.split(":")[0].trim();
-            String fields = type.split(":")[1].trim();
+            String className;
+            String fields = "";
+            if (type.contains(":")) {
+                className = type.split(":")[0].trim();
+                fields = type.split(":")[1].trim();
+            } else {
+                className = type.trim();
+            }
             defineType(writer, baseName, className, fields);
         }
         writer.println("}");
@@ -67,7 +75,7 @@ class GenerateAst {
     private static void defineType(PrintWriter writer, String baseName, String className, String fields) {
         writer.println();
         writer.println("    static class "+className+" extends "+baseName+" {");
-        String[] fieldsAsArr = fields.split(",");
+        String[] fieldsAsArr = fields.equals("") ? new String[0] : fields.split(",");
         for (String field : fieldsAsArr) {
             writer.println("        final "+field.trim()+";");
         }
