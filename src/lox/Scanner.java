@@ -104,7 +104,7 @@ public class Scanner {
                     number();
                 } else if (isAlpha(c)) {
                     identifier();
-                } else Lox.error(line, "undefined character '"+c+"'");
+                } else Lox.error(line, "undefined character: "+c);
             }
     }
 

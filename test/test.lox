@@ -6,4 +6,4 @@ print s0medecl4ration;
 var x;
 print x;
 {var y = x=((((4))));
-print z = x;}
+print y;}

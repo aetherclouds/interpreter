@@ -3,6 +3,7 @@ package lox;
 import static lox.TokenType.*;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public class Parser {
@@ -119,19 +120,7 @@ public class Parser {
     private Stmt declaration() {
         try {
             if (match(VAR)) {
-                // Token name = consume(IDENTIFIER, "\"var\" declaration must be a valid identifier, as in /[a-zA-Z][a-zA-Z0-9]*/");
-                /* since we already matched VAR, we already know waht follows MUST be an assignable (Expr.Variable) 
-                * so instead of "drilling down" the grammar, go straight for `primary` (which can output a Expr.Variable)  */
-                Expr name = primary();
-                if (name instanceof Expr.Variable) {
-                    Expr initializer = null;
-                    if (match(EQUAL)) {
-                        initializer = assignment();
-                    }
-                    consume(SEMICOLON, "expected ';' after declaration");
-                    return new Stmt.Var(((Expr.Variable)name).name, initializer);
-                }
-                throw error(previous(), "invalid variable declaration target following `var`");
+                return varDeclaration();
             }
             return statement();
         } catch (ParseError error) {
@@ -140,36 +129,114 @@ public class Parser {
         }
     }
 
+    private Stmt.Var varDeclaration() {
+        /* since we already matched VAR, we already know what follows MUST be an assignable (Expr.Variable) 
+        * so instead of "drilling down" the grammar, go straight for `primary` (which can return a Expr.Variable)  */
+        Expr name = primary();
+        if (!(name instanceof Expr.Variable)) {
+            throw error(previous(), "invalid variable declaration target following `var`");
+        }
+        Expr initializer = null;
+        if (match(EQUAL)) {
+            initializer = assignment();
+        }
+        consume(SEMICOLON, "expected ';' instead, after declaration");
+        return new Stmt.Var(((Expr.Variable)name).name, initializer);
+    }
+
     private Stmt statement() {
         if (match(LEFT_BRACE)) {
             return new Stmt.Block(block());
         }
         if (match(PRINT)) {
             Expr value = expression();
-            consume(SEMICOLON, "expected ';' after print statement");
+            consume(SEMICOLON, "expected ';' instead, after print statement");
             return new Stmt.Print(value);
         };
+        if (match(IF)) {
+            consume(LEFT_PAREN, "expected '(' instead, after if statement");
+            Expr condition = expression();
+            consume(RIGHT_PAREN, "expected ')' instead, after expression of if statement");
+            // declaration not allowed
+            Stmt thenBranch = statement();
+            Stmt elseBranch = null;
+            if (match(ELSE)) {
+                elseBranch = statement();
+            }
+            return new Stmt.If(condition, thenBranch, elseBranch);
+        }
+        if (match(WHILE)) {
+            consume(LEFT_PAREN, "expected '(' instead, after while statement");
+            Expr condition = expression();
+            consume(RIGHT_PAREN, "expected ')' instead, after expression of while statement");
+            Stmt body = statement();
+            return new Stmt.While(condition, body);
+        }
+        if (match(FOR)) {
+            consume(LEFT_PAREN, "expected '(' instead, after for statement");
+
+            Stmt initializer = null;
+            if (!match(SEMICOLON)) {
+                if (match(VAR)) initializer = varDeclaration();
+                // could also make `initializer` an `Expr` and match a definition expression. not sure why one would want to write anything else here
+                else initializer = expressionStatement(); 
+                // expressionStatement consumes SEMICOLON
+            }
+
+            Expr condition = null;
+            if (!match(SEMICOLON)) {
+                condition = expression();
+                consume(SEMICOLON, "expected ';' after `for` statement condition");
+            }
+
+            Expr increment = null;
+            if (!match(RIGHT_PAREN)) {
+                increment = expression();
+                consume(RIGHT_PAREN, "expected ')' instead, after expression of for statement");
+            }
+
+            // TODO: optional body
+            // Stmt body = null;
+            // if (!match(SEMICOLON))  body = statement();
+            Stmt body = statement();
+
+            // "desugarize" `for` statement - build an AST using the `while` node
+            if (null == condition) condition = new Expr.Literal(true);
+            if (null != increment) body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(increment)));
+            Stmt stmt = new Stmt.While(condition, body);
+            if (null != initializer) stmt = new Stmt.Block(Arrays.asList(initializer, stmt));
+            return stmt;
+            
+        }
+
         // fallthrough case
+        return expressionStatement();
+    }
+
+    private Stmt.Expression expressionStatement() {
         Expr value = expression();
-        consume(SEMICOLON, "expected ';' after statement");
+        consume(SEMICOLON, "expected ';' instead, after statement");
         return new Stmt.Expression(value);
     }
     
     private Expr expression() {
+        if (match(VAR)) throw error(previous(), "declaration not allowed here");
+        if (match(RIGHT_PAREN)) throw error(previous(), "empty expression");
+        
         Expr expr = assignment();
-        // if (match(COMMA)) {
-        //     expr = new Expr.Binary(expr, previous(), expression());
-        // }
-        // if (match(QUESTION)) {
-        //     Token question = previous();
-        //     Expr branch1 = expression();
-        //     if (!match(COLON)) error(peek(), "second branch of ternary operator must be defined following a `:`, which is missing");
-        //     Token colon = previous();
-        //     Expr branch2 = expression();
-        //     expr = new Expr.Binary(expr, question, new Expr.Binary(branch1, colon, branch2));
-        // } else while(match(COMMA)) {
-        //     expr = new Expr.Binary(expr, previous(), equality());
-        // }
+
+        if (match(QUESTION)) {
+            Expr thenBranch = expression();
+            consume(COLON, "expected ':' instead, after first branch of ternary operator");
+            Expr elseBranch = expression();
+            expr = new Expr.Ternary(expr, thenBranch, elseBranch);
+        }
+        if (match(AND) || match(OR)) {
+            Token operator = previous();
+            Expr right = expression();
+            expr = new Expr.LogicalBinary(expr, operator, right);
+        }
+        
         return expr;
     }
 
@@ -244,12 +311,10 @@ public class Parser {
 
     private Expr primary() {
         if (match(IDENTIFIER)) return new Expr.Variable(previous()); // on assigments, this should be the only thing that's returned from the left-side
-        if (match(RIGHT_PAREN)) 
-            throw error(previous(), "closing parenthesis don't match an opening parenthesis");
         if (match(
             BANG, MINUS, SLASH, STAR, PLUS, MINUS, 
             GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, BANG_EQUAL, EQUAL_EQUAL
-        )) throw error(previous(), "binary operator not preceded by a complete expression");
+        )) throw error(previous(), "operator not allowed here");
         if (match(FALSE)) return new Expr.Literal(false);
         if (match(TRUE)) return new Expr.Literal(true);
         if (match(NIL)) return new Expr.Literal(null);
@@ -258,9 +323,9 @@ public class Parser {
 
         if (match(LEFT_PAREN)) {
             Expr expr = expression();
-            consume(RIGHT_PAREN, "expected ')' after expression");
+            consume(RIGHT_PAREN, "expected ')' instead, after expression");
             return new Expr.Grouping(expr);
         }
-        throw error(peek(), "empty expression");
+        throw error(peek(), "expected a non-empty expression instead");
     }
 }

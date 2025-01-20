@@ -1,5 +1,7 @@
 package lox;
 
+import lox.Expr.LogicalBinary;
+import lox.Stmt.While;
 
 public class Interpreter implements Expr.Visitor<Object>,
                                     Stmt.Visitor<Void> {
@@ -16,27 +18,31 @@ public class Interpreter implements Expr.Visitor<Object>,
     public void interpret(Iterable<Stmt> statements) {   
         try {
             for (Stmt stmt : statements) {
-                if (stmt instanceof Stmt.Expression) 
-                System.out.println(evaluate(((Stmt.Expression)stmt).expression));
-                execute(stmt);
+                if (
+                    stmt instanceof Stmt.Expression
+                    // avoid printing `x = y`;
+                    && !(((Stmt.Expression)stmt).expression instanceof Expr.Assignment)
+                ) System.out.println(evaluate(((Stmt.Expression)stmt).expression));
+                else execute(stmt);
             }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
         }
     }
 
-    private Object evaluate(Expr expr) {
+    public Object evaluate(Expr expr) {
         return null == expr ? null : expr.accept(this);
         // return expr.accept(this);
     }
 
-    private void execute(Stmt stmt) {
+    public void execute(Stmt stmt) {
         stmt.accept(this);
     }
 
     private boolean isTruthy(Object object) {
         if (null == object) return false;
         if (object instanceof Boolean) return (boolean)object;
+        if (object instanceof Double) return (Double)object == 0. ? false : true;
         return true;
     }
 
@@ -88,8 +94,9 @@ public class Interpreter implements Expr.Visitor<Object>,
                 // let java do the work of casting our dynamic object
                 checkNumberOperand(expr.operator, right); 
                 return -(double)right;
+            default:
+                throw new RuntimeError(expr.operator, "undefined operator behavior for unary expression");
         }
-        return null; // TODO: remove this
     }
 
     @Override
@@ -98,6 +105,26 @@ public class Interpreter implements Expr.Visitor<Object>,
         environment.assign(expr.name, value);
         return value;
     }
+
+    @Override
+    public Object visitLogicalBinaryExpr(LogicalBinary expr) {
+        Object left = evaluate(expr.left);
+        switch(expr.operator.type) {
+            case AND:
+                if (isTruthy(left)) {
+                    Object right = evaluate(expr.right);
+                    if (isTruthy(right)) return right;
+                }
+                return left;
+            case OR:
+                if (isTruthy(left)) return left;
+                // let's not even care about determining whether `right` is truthy - we'll return it either way
+                return evaluate(expr.right);
+            default:
+                throw new RuntimeError(expr.operator, "undefined operator behavior for logical binary expression");
+        }
+    }
+
 
     @Override
     public Object visitBinaryExpr(Expr.Binary expr) {
@@ -138,8 +165,17 @@ public class Interpreter implements Expr.Visitor<Object>,
                     return (String)left + (String)right;
                 checkNumberOperands(expr.operator, left, right); 
                 return (double)left + (double)right;            
+
+            default:
+                throw new RuntimeError(expr.operator, "undefined operator behavior for binary expression");
         }
-        return null; // TODO: remove this
+    }
+
+    @Override
+    public Object visitTernaryExpr(Expr.Ternary expr) {
+        return (isTruthy(evaluate(expr.condition))) 
+        ? evaluate(expr.thenExpr)
+        : evaluate(expr.elseExpr);
     }
 
     @Override
@@ -168,6 +204,22 @@ public class Interpreter implements Expr.Visitor<Object>,
     public Void visitVarStmt(Stmt.Var stmt) {
         // NOTE: evaluating `stmt.initializer` in-place means we're always assigning by value, not reference'
         environment.define(stmt.name, null == stmt.initializer ? null /* for declaration */ : evaluate(stmt.initializer));
+        return null;
+    }
+
+    @Override
+    public Void visitIfStmt(Stmt.If stmt) {
+        if (isTruthy(evaluate(stmt.condition))) 
+            execute(stmt.thenBranch);
+        else if (null != stmt.elseBranch) execute(stmt.elseBranch);
+        return null;
+    }
+
+    @Override
+    public Void visitWhileStmt(While stmt) {
+        while (isTruthy(evaluate(stmt.condition))) {
+            execute(stmt.body);
+        }
         return null;
     }
 }

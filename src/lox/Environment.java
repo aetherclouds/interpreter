@@ -17,7 +17,7 @@ public class Environment {
     void assign(Token name, Object value) {
         if (!values.containsKey(name.lexeme)) {
             if (null != enclosing) {enclosing.assign(name, value); return;}
-            throw new RuntimeError(name, "variable doesn't exist: "+name.lexeme);
+            throw new RuntimeError(name, "variable doesn't exist");
         }
         values.put(name.lexeme, value);
     }
@@ -25,7 +25,7 @@ public class Environment {
     Object get(Token name) {
         if (!values.containsKey(name.lexeme)) {
             if (null != enclosing) return enclosing.get(name);
-            throw new RuntimeError(name, "variable doesn't exist: "+name.lexeme);
+            throw new RuntimeError(name, "variable doesn't exist");
         }
         return values.get(name.lexeme);
     }

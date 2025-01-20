@@ -37,7 +37,7 @@ class Lox {
         if (hadRuntimeError) System.exit(70);
     }
 
-    private static void runPrompt() throws IOException {
+    private static void runPrompt()  throws IOException {
         BufferedReader input = new BufferedReader(new InputStreamReader(System. in));
         for (;;) {
             System.out.print("> ");
@@ -64,12 +64,12 @@ class Lox {
     }
 
     static void runtimeError(RuntimeError error) {
-        System.err.println(error.getMessage() + " (line "+error.token.line+")");
+        report(error.token.line, "at '"+error.token.lexeme+"'", error.getMessage());
         hadRuntimeError = true;
     }
 
     static void error(int line, String message) {
-        report(line, "", message);
+        report(line, null, message);
     }
     
     static void error(Token token, String message) {
@@ -81,7 +81,8 @@ class Lox {
     private static void report(int line, String where, String message) {
         System.err.println(
             (file != null ? file.getFileName().toString() : "<prompt>")  + ":" 
-            + line + " error " + where + ": " 
+            + line 
+            + " error" + (where != null ? " " + where : "" ) + ": "
             + message);
         hadError = true;
     }

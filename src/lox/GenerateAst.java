@@ -10,17 +10,21 @@ class GenerateAst {
     public static void main(String[] args) throws IOException {
         defineAst("Expr", new String[]{
             "Grouping   : Expr expression",
+            "LogicalBinary: Expr left, Token operator, Expr right",
             "Binary     : Expr left, Token operator, Expr right",
             "Assignment : Token name, Expr value", // we don't use Binary because `left` can't be an expression - we need a new node type in the AST
             "Unary      : Token operator, Expr right",
             "Variable   : Token name",
             "Literal    : Object value",
+            "Ternary    : Expr condition, Expr thenExpr, Expr elseExpr",
         });
 
         defineAst("Stmt", new String[]{
             "Block      : Iterable<Stmt> statements",
             "Expression : Expr expression", // expressions by themselves can be statements. ex.: `1 + 2;`, `a = 10;`
             "Print      : Expr expression",
+            "If         : Expr condition, Stmt thenBranch, Stmt elseBranch",
+            "While      : Expr condition, Stmt body",
             // declarations
             "Var        : Token name, Expr initializer",
         });
