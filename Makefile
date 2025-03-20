@@ -8,7 +8,7 @@ ARGS :=
 run: bin/lox/Lox.class
 	java -cp bin lox.Lox $(ARGS)
 
-run-% : bin/lox/%.class
+run-%: bin/lox/%.class
 	java -cp bin lox.$(subst /,.,$*) $(ARGS)
 
 runjar: bin/lox.jar

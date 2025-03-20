@@ -1,16 +1,31 @@
 package lox;
 
-import lox.Expr.LogicalBinary;
-import lox.Stmt.Break;
-import lox.Stmt.Continue;
-import lox.Stmt.While;
+import java.util.ArrayList;
+import java.util.List;
+
+import lox.Stmt.Fun;
+import lox.Stmt.Return;
+
 
 public class Interpreter implements Expr.Visitor<Object>,
                                     Stmt.Visitor<Void> {
     
-    Environment environment = new Environment();
+    final Environment globals = new Environment();
+    Environment environment = globals;
+    Interpreter() {
+        globals.define("time", new LoxCallable() {
+            @Override
+            public int arity() {return 0;}
+            @Override
+            public Double call(Interpreter interpreter, List<Object> arguments) {
+                return System.currentTimeMillis() / 1000.;
+            }
+            @Override
+            public String toString() {return "<native-fn>";}
+        });
+    }
     static class RuntimeError extends RuntimeException {
-        Token token;
+        final Token token;
         RuntimeError(Token token, String message) {
             super(message);
             this.token = token;
@@ -18,23 +33,31 @@ public class Interpreter implements Expr.Visitor<Object>,
     };
 
     static class ContinueException extends RuntimeException {
-        Token token;
+        final Token token;
         ContinueException(Token token) {this.token = token;}
     };
 
     static class BreakException extends RuntimeException {
-        Token token;
+        final Token token;
         BreakException(Token token) {this.token = token;}
+    };
+
+    static class ReturnException extends RuntimeException {
+        final Object obj;
+        ReturnException(Object obj) {
+            super(null, null, false, false); 
+            this.obj = obj;
+        }
     };
 
     public void interpret(Iterable<Stmt> statements) {   
         try {
             for (Stmt stmt : statements) {
                 if (
-                    stmt instanceof Stmt.Expression
+                    stmt instanceof Stmt.Expression exprstmt
                     // avoid printing `x = y`;
-                    && !(((Stmt.Expression)stmt).expression instanceof Expr.Assignment)
-                ) System.out.println(evaluate(((Stmt.Expression)stmt).expression));
+                    && !(exprstmt.expression instanceof Expr.Assignment)
+                ) System.out.println(evaluate((exprstmt.expression)));
                 else execute(stmt);
             }
         } catch (RuntimeError error) {
@@ -59,8 +82,8 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     private boolean isTruthy(Object object) {
         if (null == object) return false;
-        if (object instanceof Boolean) return (boolean)object;
-        if (object instanceof Double) return (Double)object == 0. ? false : true;
+        if (object instanceof Boolean obj) return obj;
+        if (object instanceof  Double obj) return obj == 0. ? false : true;
         return true;
     }
 
@@ -125,7 +148,7 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
-    public Object visitLogicalBinaryExpr(LogicalBinary expr) {
+    public Object visitLogicalBinaryExpr(Expr.LogicalBinary expr) {
         Object left = evaluate(expr.left);
         switch(expr.operator.type) {
             case AND:
@@ -179,8 +202,8 @@ public class Interpreter implements Expr.Visitor<Object>,
                 checkNumberOperands(expr.operator, left, right); 
                 return (double)left - (double)right;
             case PLUS:
-                if (left instanceof String && right instanceof String)
-                    return (String)left + (String)right;
+                if (left instanceof String l && right instanceof String r)
+                    return l + r;
                 checkNumberOperands(expr.operator, left, right); 
                 return (double)left + (double)right;            
 
@@ -210,12 +233,17 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Void visitBlockStmt(Stmt.Block stmt) {
-        environment = new Environment(environment);
+        executeBlock(stmt, new Environment(environment));
+        return null;
+    }
+
+    void executeBlock(Stmt.Block stmt, Environment environment) {
+        this.environment = environment;
         for (Stmt statement : stmt.statements) {
             execute(statement);
         }
-        environment = environment.enclosing;
-        return null;
+        this.environment = environment.enclosing;
+
     }
 
     @Override
@@ -234,7 +262,7 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
-    public Void visitWhileStmt(While stmt) {
+    public Void visitWhileStmt(Stmt.While stmt) {
         while (isTruthy(evaluate(stmt.condition))) {
             // this is probably bad for performance, but so is making an interpreter in Java
             try {
@@ -249,12 +277,46 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     @Override
-    public Void visitContinueStmt(Continue stmt) {
+    public Void visitContinueStmt(Stmt.Continue stmt) {
         throw new ContinueException(stmt.token);
     }
 
     @Override
-    public Void visitBreakStmt(Break stmt) {
+    public Void visitBreakStmt(Stmt.Break stmt) {
         throw new BreakException(stmt.token);
+    }
+
+    @Override
+    public Object visitCallExpr(Expr.Call expr) {
+        // SHOULD get dispatched to visitVariableExpr (`fun();`) OR callExpr (`fun()();`)
+        // as checked by Parser.call
+        Object callee = evaluate(expr.callee);
+        // TODO: should this be runtime error or compile time?
+        if (!(callee instanceof LoxCallable)) {
+            throw new RuntimeError(expr.paren, "expression is not callable");
+        }
+        // visitVariableExpr will check against variable mapping in the environment, and should return a callable
+        LoxCallable function = (LoxCallable)callee;
+        if (expr.arguments.size() != function.arity()) {
+            throw new RuntimeError(expr.paren, "function expected "+function.arity()+" but got "+expr.arguments.size());
+        }
+        List<Object> args = new ArrayList<>();
+        // args aren't evaluated lazily
+        for (Expr arg : expr.arguments) {
+            args.add(evaluate(arg));
+        }
+        
+        return function.call(this, args);
+    }
+
+    @Override
+    public Void visitFunStmt(Fun stmt) {
+        environment.define(stmt.name, new LoxFunction(stmt, new Environment(environment)));
+        return null;
+    }
+
+    @Override
+    public Void visitReturnStmt(Return stmt) {
+        throw new ReturnException(evaluate(stmt.expr));
     }
 }

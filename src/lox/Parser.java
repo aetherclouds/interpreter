@@ -8,7 +8,8 @@ import java.util.List;
 
 public class Parser {
     // use RuntimeExceptions when the caller is doing something wrong.
-    private static class ParseError extends RuntimeException {}
+    private static class ParseError extends RuntimeException {
+    }
 
     // not an Iterable because we need an index accessor method
     private final List<Token> tokens;
@@ -18,23 +19,37 @@ public class Parser {
         this.tokens = tokens;
     }
 
-    private boolean isAtEnd() {return tokens.get(current).type == EOF;}
+    private boolean isAtEnd() {
+        return check(EOF);
+    }
 
-    Token peek() {return tokens.get(current);}
+    Token peek() {
+        return tokens.get(current);
+    }
 
-    Token advance() {if (!isAtEnd()) ++current; return previous();}
+    Token advance() {
+        // if (!isAtEnd())
+        //     ++current;
+        // return previous();
+        Token ret = peek();
+        if (!isAtEnd()) ++current;
+        return ret;
+    }
 
-    Token previous() {return tokens.get(current-1);}
+    Token previous() {
+        return tokens.get(current - 1);
+    }
 
     // private boolean check(TokenType tokenType) {
-    //     return tokenType == peek().type;
+    // return tokenType == peek().type;
     // }
 
     private boolean match(TokenType... tokenTypes) {
         Token match = peek();
-        if (null == match) return false;
+        if (null == match)
+            return false;
         for (TokenType tokenType : tokenTypes) {
-            if (tokenType == match.type) {
+            if (check(tokenType)) {
                 advance();
                 return true;
             }
@@ -42,8 +57,13 @@ public class Parser {
         return false;
     }
 
+    private boolean check(TokenType type) {
+        return type == peek().type;
+    }
+
     private Token consume(TokenType type, String message) {
-        if (type == peek().type) return advance();
+        if (check(type))
+            return advance();
         throw error(peek(), message);
     }
 
@@ -53,7 +73,7 @@ public class Parser {
     }
 
     private void synchronize() {
-        if (peek().type == RIGHT_BRACE) // only time we'll ever find ourselves here is when dealing w/ empty expressions
+        if (check(RIGHT_BRACE)) // only time we'll ever find ourselves here is when dealing w/ empty expressions
             return;
         advance(); // don't match current problematic token in `switch` below
         while (!isAtEnd()) {
@@ -84,11 +104,17 @@ public class Parser {
             List<Stmt> statements = new ArrayList<>();
             while (!isAtEnd()) {
                 // TODO: feels weird doing this here
-                /* inside a block statement, we match `declaration`s. the grammar to detect the end of a block
-                 * must then be at or below the level of `declaration`. since we have no global state to track block level,
-                 * a `RIGHT_BRACE` match inside `declaration` will always be seen as successful. so we have to match
-                 * an error production at at least a level above. */
-                if (match(RIGHT_BRACE)) throw error(previous(), "closing unopened brace");
+                /*
+                 * inside a block statement, we match `declaration`s. the grammar to detect the
+                 * end of a block
+                 * must then be at or below the level of `declaration`. since we have no global
+                 * state to track block level,
+                 * a `RIGHT_BRACE` match inside `declaration` will always be seen as successful.
+                 * so we have to match
+                 * an error production at at least a level above.
+                 */
+                if (match(RIGHT_BRACE))
+                    throw error(previous(), "closing unopened brace");
                 statements.add(declaration());
             }
             return statements;
@@ -97,30 +123,28 @@ public class Parser {
         }
     }
 
-    private Iterable<Stmt> block() {
-        Token brace = previous();
-        List<Stmt> stmts = new ArrayList<>();
-        do {
-            if (isAtEnd()) throw error(brace, "unclosed brace");
-            stmts.add(declaration());
-        } while (!match(RIGHT_BRACE));
-        return stmts;
-    }
+    /*
+     * say we want to match a literal token: every rule before it will be
+     * matched/called.
+     * the parts that really make the grammar rulesunique, are optional.
+     * so we can "drill down" until we hit literals.
+     */
 
-    /* say we want to match a literal token: every rule before it will be matched/called.
-    * the parts that really make the grammar rulesunique, are optional. 
-    * so we can "drill down" until we hit literals. */
-
-    /* we want declarations to have a different precedence from statements because, while they are statements, 
-    * we don't want them coming after if or while statements because the scope can be confusing.
-    * ex.: if (a) var b = c; 
-    * so when `statement()` recursively calls itself after an `if` or `while`, 
-    * it can't match a declaration, since it's a "level" above.
-    * */
+    /*
+     * we want declarations to have a different precedence from statements because,
+     * while they are statements,
+     * we don't want them coming after if or while statements because the scope can
+     * be confusing.
+     * ex.: if (a) var b = c;
+     * so when `statement()` recursively calls itself after an `if` or `while`,
+     * it can't match a declaration, since it's a "level" above.
+     */
     private Stmt declaration() {
         try {
             if (match(VAR)) {
                 return varDeclaration();
+            } else if (match(FUN)) {
+                return function("function");
             }
             return statement();
         } catch (ParseError error) {
@@ -130,21 +154,46 @@ public class Parser {
     }
 
     private Stmt.Var varDeclaration() {
-        /* since we already matched VAR, we already know what follows MUST be an assignable (Expr.Variable) 
-        * so instead of "drilling down" the grammar, go straight for `primary` (which can return a Expr.Variable)  */
-        Expr name = primary();
-        if (!(name instanceof Expr.Variable)) {
-            throw error(previous(), "invalid variable declaration target following `var`");
-        }
+        /*
+         * since we already matched VAR, we already know what follows MUST be an
+         * assignable (Expr.Variable)
+         * so instead of "drilling down" the grammar, go straight for `primary` (which
+         * can return a Expr.Variable)
+         */
+        Token name = consume(IDENTIFIER, "invalid variable declaration target following `var`");
+        // if (!(name instanceof Expr.Variable)) {
+        //     throw error(previous(), "invalid variable declaration target following `var`");
+        // }
         Expr initializer = null;
         if (match(EQUAL)) {
             initializer = assignment();
         }
         consume(SEMICOLON, "expected ';' instead, after declaration");
-        return new Stmt.Var(((Expr.Variable)name).name, initializer);
+        return new Stmt.Var(name, initializer);
+    }
+
+    private Stmt.Fun function(String kind) {
+        Token name = consume(IDENTIFIER, "invalid "+kind+" declaration target following `var`");
+        consume(LEFT_PAREN, "expected '(' in "+kind+" declaration");
+        List<Token> params = new ArrayList<>();
+        if (!match(RIGHT_PAREN)) {
+            for(;;) {
+                params.add(consume(IDENTIFIER, "expected parameter on "+kind+" signature"));
+                if (params.size() > 254) throw error(peek(), "exceeded max. "+kind+" parameter count (255)");
+                if (match(RIGHT_PAREN)) break;
+                consume(COMMA, "expected ',' after "+kind+" parameter, or ')'");
+            }
+        }
+        
+        Stmt body = statement();
+        return new Stmt.Fun(name, params, body);
     }
 
     private Stmt statement() {
+        if (match(LEFT_BRACE)) {
+            return new Stmt.Block(block());
+        }
+        // TODO: check if inside loop?
         if (match(CONTINUE)) {
             Token stmt = previous();
             consume(SEMICOLON, "expected ';' instead, after print statement");
@@ -155,14 +204,11 @@ public class Parser {
             consume(SEMICOLON, "expected ';' instead, after print statement");
             return new Stmt.Break(stmt);
         }
-        if (match(LEFT_BRACE)) {
-            return new Stmt.Block(block());
-        }
         if (match(PRINT)) {
             Expr value = expression();
             consume(SEMICOLON, "expected ';' instead, after print statement");
             return new Stmt.Print(value);
-        };
+        }
         if (match(IF)) {
             consume(LEFT_PAREN, "expected '(' instead, after if statement");
             Expr condition = expression();
@@ -187,9 +233,12 @@ public class Parser {
 
             Stmt initializer = null;
             if (!match(SEMICOLON)) {
-                if (match(VAR)) initializer = varDeclaration();
-                // could also make `initializer` an `Expr` and match a definition expression. not sure why one would want to write anything else here
-                else initializer = expressionStatement(); 
+                if (match(VAR))
+                    initializer = varDeclaration();
+                // could also make `initializer` an `Expr` and match a definition expression.
+                // not sure why one would want to write anything else here
+                else
+                    initializer = expressionStatement();
                 // expressionStatement consumes SEMICOLON
             }
 
@@ -207,32 +256,55 @@ public class Parser {
 
             // TODO: optional body
             // Stmt body = null;
-            // if (!match(SEMICOLON))  body = statement();
+            // if (!match(SEMICOLON)) body = statement();
             Stmt body = statement();
 
             // "desugarize" `for` statement - build an AST using the `while` node
-            if (null == condition) condition = new Expr.Literal(true);
-            if (null != increment) body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(increment)));
+            if (null == condition)
+                condition = new Expr.Literal(true);
+            if (null != increment)
+                body = new Stmt.Block(Arrays.asList(body, new Stmt.Expression(increment)));
             Stmt stmt = new Stmt.While(condition, body);
-            if (null != initializer) stmt = new Stmt.Block(Arrays.asList(initializer, stmt));
+            if (null != initializer)
+                stmt = new Stmt.Block(Arrays.asList(initializer, stmt));
             return stmt;
-            
+        }
+        if (match(RETURN)) {
+            Token keyword = previous();
+            Expr value = null;
+            if (!check(SEMICOLON)) {
+                value = expression();
+            }
+            consume(SEMICOLON, "expected ';' instead, after print statement");
+            return new Stmt.Return(keyword, value);
         }
 
         // fallthrough case
         return expressionStatement();
     }
 
+    private Iterable<Stmt> block() {
+        Token brace = previous();
+        List<Stmt> stmts = new ArrayList<>();
+        while (!match(RIGHT_BRACE)) {
+            if (isAtEnd())
+                throw error(brace, "unclosed brace");
+            stmts.add(declaration());
+        }
+        return stmts;
+    }
+ 
     private Stmt.Expression expressionStatement() {
         Expr value = expression();
         consume(SEMICOLON, "expected ';' instead, after statement");
         return new Stmt.Expression(value);
     }
-    
+
     private Expr expression() {
-        if (match(VAR)) throw error(previous(), "declaration not allowed here");
-        if (match(RIGHT_PAREN)) throw error(previous(), "empty expression");
-        
+        if (match(VAR))
+            throw error(previous(), "declaration not allowed here");
+        // if (match(RIGHT_PAREN)) throw error(previous(), "empty expression");
+
         Expr expr = assignment();
 
         if (match(QUESTION)) {
@@ -241,12 +313,12 @@ public class Parser {
             Expr elseBranch = expression();
             expr = new Expr.Ternary(expr, thenBranch, elseBranch);
         }
-        if (match(AND) || match(OR)) {
+        while (match(AND) || match(OR)) {
             Token operator = previous();
-            Expr right = expression();
+            Expr right = assignment();
             expr = new Expr.LogicalBinary(expr, operator, right);
         }
-        
+
         return expr;
     }
 
@@ -254,13 +326,14 @@ public class Parser {
         Expr expr = equality();
         if (match(EQUAL)) {
             Token equal = previous();
-            Expr value = assignment();
-
             // filters out, for ex.: `50 = 49;` `(x) = 5;`
+            // doesn't filter out `a == b = c;` for ex. because that is allowed; assignment is an expression
             if (!(expr instanceof Expr.Variable)) {
                 throw error(equal, "invalid assignment target");
             }
-            return new Expr.Assignment(((Expr.Variable)expr).name, value);
+            Expr value = assignment();
+
+            return new Expr.Assignment(((Expr.Variable) expr).name, value);
         }
         return expr;
     }
@@ -315,27 +388,54 @@ public class Parser {
 
     private Expr unary() {
         return match(BANG, MINUS)
-        ? new Expr.Unary(previous(), unary())
-        : primary();
+                ? new Expr.Unary(previous(), unary())
+                : call();
+    }
+
+    private Expr call() {
+        Expr expr = primary();
+        while (match(LEFT_PAREN)) {
+            // if (!(expr instanceof Expr.Variable || expr instanceof Expr.Call))
+            //     throw error(previous(), "expression is not callable");
+            Token paren = null;
+            List<Expr> args = new ArrayList<>();
+            if (!match(RIGHT_PAREN)) {
+                for (;;) {
+                    args.add(expression());
+                    if (args.size() > 254) throw error(peek(), "exceeded max. call argument count (255)");
+                    if (match(RIGHT_PAREN)) break;
+                    consume(COMMA, "call arguments must be separated by a ','");
+                }
+            }
+            paren = previous();
+            expr = new Expr.Call(expr, args, paren/*thesis*/);
+        }
+        return expr;
     }
 
     private Expr primary() {
-        if (match(IDENTIFIER)) return new Expr.Variable(previous()); // on assigments, this should be the only thing that's returned from the left-side
+        if (match(IDENTIFIER))
+            return new Expr.Variable(previous()); // on assigments, this should be the only thing that's returned from
+                                                  // the left-side
         if (match(
-            BANG, MINUS, SLASH, STAR, PLUS, MINUS, 
-            GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, BANG_EQUAL, EQUAL_EQUAL
-        )) throw error(previous(), "operator not allowed here");
-        if (match(FALSE)) return new Expr.Literal(false);
-        if (match(TRUE)) return new Expr.Literal(true);
-        if (match(NIL)) return new Expr.Literal(null);
+                BANG, MINUS, SLASH, STAR, PLUS, MINUS,
+                GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, BANG_EQUAL, EQUAL_EQUAL))
+            throw error(previous(), "operator not allowed here");
+        if (match(FALSE))
+            return new Expr.Literal(false);
+        if (match(TRUE))
+            return new Expr.Literal(true);
+        if (match(NIL))
+            return new Expr.Literal(null);
 
-        if (match(NUMBER, STRING)) return new Expr.Literal(previous().literal);
+        if (match(NUMBER, STRING))
+            return new Expr.Literal(previous().literal);
 
         if (match(LEFT_PAREN)) {
             Expr expr = expression();
             consume(RIGHT_PAREN, "expected ')' instead, after expression");
             return new Expr.Grouping(expr);
         }
-        throw error(peek(), "expected a non-empty expression instead");
+        throw error(peek(), "expected an expression instead");
     }
 }

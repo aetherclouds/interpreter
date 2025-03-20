@@ -13,11 +13,12 @@ public class Environment {
     Environment(Environment enclosing) {this.enclosing = enclosing;}
 
     void define(Token name, Object value) {values.put(name.lexeme, value);}
+    void define(String name, Object value) {values.put(name, value);}
 
     void assign(Token name, Object value) {
         if (!values.containsKey(name.lexeme)) {
             if (null != enclosing) {enclosing.assign(name, value); return;}
-            throw new RuntimeError(name, "variable doesn't exist");
+            throw new RuntimeError(name, "identifier doesn't exist");
         }
         values.put(name.lexeme, value);
     }
@@ -25,7 +26,7 @@ public class Environment {
     Object get(Token name) {
         if (!values.containsKey(name.lexeme)) {
             if (null != enclosing) return enclosing.get(name);
-            throw new RuntimeError(name, "variable doesn't exist");
+            throw new RuntimeError(name, "identifier doesn't exist");
         }
         return values.get(name.lexeme);
     }

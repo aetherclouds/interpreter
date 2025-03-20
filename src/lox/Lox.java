@@ -13,13 +13,13 @@ import java.nio.charset.Charset;
 
 class Lox {
     static private Path file;
-    /* interpreter needs to maintain state, so we can 
+    /* interpreter needs to maintain state, so we can
     * retain variables and other state across multiple evaulations.
     * (i.e. REPL lines, modules) */
     static private final Interpreter interpreter = new Interpreter();
     static boolean hadError = false;
     static boolean hadRuntimeError = false;
-    
+
     public static void main(String[] args) throws IOException {
         if (args.length > 1) {
             System.err.println("usage: java lox <filename>");
@@ -38,7 +38,7 @@ class Lox {
     }
 
     private static void runPrompt()  throws IOException {
-        BufferedReader input = new BufferedReader(new InputStreamReader(System. in));
+        BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
         for (;;) {
             System.out.print("> ");
             // return value excludes \r and \n as per java docs
@@ -58,7 +58,7 @@ class Lox {
         Iterable<Stmt> statements = parser.parse();
         if (hadError) return;
         // System.out.println(new PrintAst().output(statements));
-        
+
         interpreter.interpret(statements);
         if (hadRuntimeError) return;
     }
@@ -71,17 +71,17 @@ class Lox {
     static void error(int line, String message) {
         report(line, null, message);
     }
-    
+
     static void error(Token token, String message) {
         if (TokenType.EOF == token.type) {
             report(token.line, "at end", message);
         } else report(token.line, "at '"+token.lexeme+"'", message);
     }
-    
+
     private static void report(int line, String where, String message) {
         System.err.println(
-            (file != null ? file.getFileName().toString() : "<prompt>")  + ":" 
-            + line 
+            (file != null ? file.getFileName().toString() : "<prompt>")  + ":"
+            + line
             + " error" + (where != null ? " " + where : "" ) + ": "
             + message);
         hadError = true;

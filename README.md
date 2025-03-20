@@ -19,7 +19,20 @@ the AST is generated from a string definition and must be regenerated whenever t
 - [x] interpreter: cast double to boolean for things like `1 ?  a : b;`
 - [ ] interpreter: cast boolean to double for things like `(a == b) * 4`
 - [ ] fully implement ternary expressions (`cond ? branch1 : branch2`)
-- [x] parser with global "level" state, or match error production for extra closing bracket (ex.: `{}}`)
+- [x] parser with global "level" state, or match error production for extra closing bracket (ex.: `{}}`)\
+- [ ] different synchronization behavior for ';' character when inside for-loop initializer 
 ## ideas
 - [ ] throw some kind of EndOfExpression exception during parsing so we can skip the upward chain of redundant checks when we know the next token (EOF) won't match anything
 - [ ] allow identifiers to start with a number - current valid identifier is `/[a-zA-Z][a-zA-Z0-9]*/` (cursed)
+- [ ] "escape" to global scope:
+    ```
+    // start of file
+    var x = 123;
+    }
+    /* x is not accessible here since
+    it's not part of global scope */
+    fun newGlobalMethod() {...}
+    {
+    // end of file
+    ```
+    had this idea because initial environment could inherit from global environment, creating 2 layers of scope from the start, so it would be cool to "climb up" since that is what code blocks do
