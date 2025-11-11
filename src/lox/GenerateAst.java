@@ -17,7 +17,10 @@ class GenerateAst {
             "Variable     : Token name",
             "Literal      : Object value",
             "Ternary      : Expr condition, Expr thenExpr, Expr elseExpr",
-            "Call         : Expr callee, List<Expr> arguments, Token paren"
+            "Call         : Expr callee, List<Expr> arguments, Token paren",
+            "Get          : Expr object, Token name",
+            "Set          : Expr object, Token name, Expr value",
+            "This         : Token keyword",
         });
 
         defineAst("Stmt", new String[]{
@@ -32,6 +35,7 @@ class GenerateAst {
             "Var        : Token name, Expr initializer",
             "Fun        : Token name, List<Token> params, Stmt body",
             "Return     : Token keyword, Expr expr",
+            "Class      : Token name, List<Stmt.Fun> methods",
         });
     }    
 

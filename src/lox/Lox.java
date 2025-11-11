@@ -59,6 +59,10 @@ class Lox {
         if (hadError) return;
         // System.out.println(new PrintAst().output(statements));
 
+        Resolver resolver = new Resolver(interpreter);
+        resolver.resolve(statements);
+        if (hadError) return;
+
         interpreter.interpret(statements);
         if (hadRuntimeError) return;
     }

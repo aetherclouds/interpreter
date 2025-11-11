@@ -1,70 +1,93 @@
 package lox;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+import lox.Expr.Get;
+import lox.Expr.Set;
+import lox.Expr.This;
+import lox.Stmt.Class;
 import lox.Stmt.Fun;
 import lox.Stmt.Return;
 
-
 public class Interpreter implements Expr.Visitor<Object>,
-                                    Stmt.Visitor<Void> {
-    
+        Stmt.Visitor<Void> {
+
     final Environment globals = new Environment();
     Environment environment = globals;
+    private Map<Expr, Integer> locals = new HashMap<>();
+
     Interpreter() {
         globals.define("time", new LoxCallable() {
             @Override
-            public int arity() {return 0;}
+            public int arity() {
+                return 0;
+            }
+
             @Override
             public Double call(Interpreter interpreter, List<Object> arguments) {
                 return System.currentTimeMillis() / 1000.;
             }
+
             @Override
-            public String toString() {return "<native-fn>";}
+            public String toString() {
+                return "<native-fn>";
+            }
         });
     }
+
     static class RuntimeError extends RuntimeException {
         final Token token;
+
         RuntimeError(Token token, String message) {
             super(message);
             this.token = token;
-        }   
+        }
     };
 
     static class ContinueException extends RuntimeException {
         final Token token;
-        ContinueException(Token token) {this.token = token;}
+
+        ContinueException(Token token) {
+            this.token = token;
+        }
     };
 
     static class BreakException extends RuntimeException {
         final Token token;
-        BreakException(Token token) {this.token = token;}
+
+        BreakException(Token token) {
+            this.token = token;
+        }
     };
 
     static class ReturnException extends RuntimeException {
         final Object obj;
+
         ReturnException(Object obj) {
-            super(null, null, false, false); 
+            super(null, null, false, false);
             this.obj = obj;
         }
     };
 
-    public void interpret(Iterable<Stmt> statements) {   
+    public void interpret(Iterable<Stmt> statements) {
         try {
             for (Stmt stmt : statements) {
-                if (
-                    stmt instanceof Stmt.Expression exprstmt
-                    // avoid printing `x = y`;
-                    && !(exprstmt.expression instanceof Expr.Assignment)
-                ) System.out.println(evaluate((exprstmt.expression)));
-                else execute(stmt);
+                if (stmt instanceof Stmt.Expression exprstmt
+                        // avoid printing `x = y`;
+                        && !(exprstmt.expression instanceof Expr.Assignment))
+                    System.out.println(evaluate((exprstmt.expression)));
+                else
+                    execute(stmt);
             }
         } catch (RuntimeError error) {
             Lox.runtimeError(error);
-        /* not caught by a `while` or `for` loop, which means user is using these statements at global scope.
-        * (rather than inside a loop)  */
-        } catch (ContinueException e) {
+
+        }
+        // program ends up here if these are uncaught by a `while` or `for` loop
+        catch (ContinueException e) {
             Lox.runtimeError(new RuntimeError(e.token, "statement may only be used inside a loop"));
         } catch (BreakException e) {
             Lox.runtimeError(new RuntimeError(e.token, "statement may only be used inside a loop"));
@@ -81,9 +104,12 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     private boolean isTruthy(Object object) {
-        if (null == object) return false;
-        if (object instanceof Boolean obj) return obj;
-        if (object instanceof  Double obj) return obj == 0. ? false : true;
+        if (null == object)
+            return false;
+        if (object instanceof Boolean obj)
+            return obj;
+        if (object instanceof Double obj)
+            return obj == 0. ? false : true;
         return true;
     }
 
@@ -101,13 +127,29 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     private boolean isEqual(Object a, Object b) {
-        /* Java's `==` may work for primitives, but for Strings it will compare pointers,
+        /*
+         * Java's `==` may work for primitives, but for Strings it will compare
+         * pointers,
          * which way work when strings are interned but it's still undesirable. also, we
-         * need to check for null before calling .equals, which may be overridden by Object,
+         * need to check for null before calling .equals, which may be overridden by
+         * Object,
          * and for Strings, it actually compares the contents.
          */
-        if (null == a) return null == b ? true : false; 
+        if (null == a)
+            return null == b ? true : false;
         return a.equals(b);
+    }
+
+    public void resolve(Expr expr, int ancestor) {
+        locals.put(expr, ancestor);
+    }
+
+    private Object lookupVariable(Token name, Expr expr) {
+        Integer depth = locals.get(expr);
+        if (depth == null) {
+            return globals.get(name);
+        }
+        return environment.ancestor(depth).get(name);
     }
 
     @Override
@@ -117,7 +159,7 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitVariableExpr(Expr.Variable expr) {
-        return environment.get(expr.name);
+        return lookupVariable(expr.name, expr);
     }
 
     @Override
@@ -128,13 +170,13 @@ public class Interpreter implements Expr.Visitor<Object>,
     @Override
     public Object visitUnaryExpr(Expr.Unary expr) {
         Object right = evaluate(expr.right);
-        switch(expr.operator.type) {
+        switch (expr.operator.type) {
             case BANG:
                 return !isTruthy(right);
             case MINUS:
                 // let java do the work of casting our dynamic object
-                checkNumberOperand(expr.operator, right); 
-                return -(double)right;
+                checkNumberOperand(expr.operator, right);
+                return -(double) right;
             default:
                 throw new RuntimeError(expr.operator, "undefined operator behavior for unary expression");
         }
@@ -143,69 +185,74 @@ public class Interpreter implements Expr.Visitor<Object>,
     @Override
     public Object visitAssignmentExpr(Expr.Assignment expr) {
         Object value = evaluate(expr.value);
-        environment.assign(expr.name, value);
+        Integer distance = locals.get(expr);
+        if (null == distance)
+            globals.assign(expr.name, value);
+        else
+            environment.ancestor(distance).assign(expr.name, value);
         return value;
     }
 
     @Override
     public Object visitLogicalBinaryExpr(Expr.LogicalBinary expr) {
         Object left = evaluate(expr.left);
-        switch(expr.operator.type) {
+        switch (expr.operator.type) {
             case AND:
                 if (isTruthy(left)) {
                     Object right = evaluate(expr.right);
-                    if (isTruthy(right)) return right;
+                    if (isTruthy(right))
+                        return right;
                 }
                 return left;
             case OR:
-                if (isTruthy(left)) return left;
-                // let's not even care about determining whether `right` is truthy - we'll return it either way
+                if (isTruthy(left))
+                    return left;
+                // let's not even care about determining whether `right` is truthy - we'll
+                // return it either way
                 return evaluate(expr.right);
             default:
                 throw new RuntimeError(expr.operator, "undefined operator behavior for logical binary expression");
         }
     }
 
-
     @Override
     public Object visitBinaryExpr(Expr.Binary expr) {
         Object left = evaluate(expr.left);
         Object right = evaluate(expr.right);
-        switch(expr.operator.type) {
+        switch (expr.operator.type) {
             case BANG_EQUAL:
                 return !isEqual(left, right);
             case EQUAL_EQUAL:
                 return isEqual(left, right);
 
             case GREATER:
-                checkNumberOperands(expr.operator, left, right); 
-                return (double)left > (double)right;
+                checkNumberOperands(expr.operator, left, right);
+                return (double) left > (double) right;
             case GREATER_EQUAL:
-                checkNumberOperands(expr.operator, left, right); 
-                return (double)left >= (double)right;
+                checkNumberOperands(expr.operator, left, right);
+                return (double) left >= (double) right;
             case LESS:
-                checkNumberOperands(expr.operator, left, right); 
-                return (double)left < (double)right;
+                checkNumberOperands(expr.operator, left, right);
+                return (double) left < (double) right;
             case LESS_EQUAL:
-                checkNumberOperands(expr.operator, left, right); 
-                return (double)left <= (double)right;
-            
-            case SLASH:
-                checkNumberOperands(expr.operator, left, right); 
-                return (double)left / (double)right;
-            case STAR:
-                checkNumberOperands(expr.operator, left, right); 
-                return (double)left * (double)right;
+                checkNumberOperands(expr.operator, left, right);
+                return (double) left <= (double) right;
 
+            case SLASH:
+                checkNumberOperands(expr.operator, left, right);
+                return (double) left / (double) right;
+            case STAR:
+                checkNumberOperands(expr.operator, left, right);
+                return (double) left * (double) right;
 
             case MINUS:
-                checkNumberOperands(expr.operator, left, right); 
-                return (double)left - (double)right;
+                checkNumberOperands(expr.operator, left, right);
+                return (double) left - (double) right;
             case PLUS:
                 if (left instanceof String l && right instanceof String r)
                     return l + r;
-                checkNumberOperands(expr.operator, left, right); 
-                return (double)left + (double)right;            
+                checkNumberOperands(expr.operator, left, right);
+                return (double) left + (double) right;
 
             default:
                 throw new RuntimeError(expr.operator, "undefined operator behavior for binary expression");
@@ -214,9 +261,9 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitTernaryExpr(Expr.Ternary expr) {
-        return (isTruthy(evaluate(expr.condition))) 
-        ? evaluate(expr.thenExpr)
-        : evaluate(expr.elseExpr);
+        return (isTruthy(evaluate(expr.condition)))
+                ? evaluate(expr.thenExpr)
+                : evaluate(expr.elseExpr);
     }
 
     @Override
@@ -238,26 +285,33 @@ public class Interpreter implements Expr.Visitor<Object>,
     }
 
     void executeBlock(Stmt.Block stmt, Environment environment) {
-        this.environment = environment;
-        for (Stmt statement : stmt.statements) {
-            execute(statement);
+        var prevEnvironment = this.environment;
+        try {
+            this.environment = environment;
+            for (Stmt statement : stmt.statements) {
+                execute(statement);
+            }
+        } finally {
+            this.environment = prevEnvironment;
         }
-        this.environment = environment.enclosing;
 
     }
 
     @Override
     public Void visitVarStmt(Stmt.Var stmt) {
-        // NOTE: evaluating `stmt.initializer` in-place means we're always assigning by value, not reference'
-        environment.define(stmt.name, null == stmt.initializer ? null /* for declaration */ : evaluate(stmt.initializer));
+        // NOTE: evaluating `stmt.initializer` in-place means we're always assigning by
+        // value, not reference'
+        environment.define(stmt.name,
+                null == stmt.initializer ? null /* for declaration */ : evaluate(stmt.initializer));
         return null;
     }
 
     @Override
     public Void visitIfStmt(Stmt.If stmt) {
-        if (isTruthy(evaluate(stmt.condition))) 
+        if (isTruthy(evaluate(stmt.condition)))
             execute(stmt.thenBranch);
-        else if (null != stmt.elseBranch) execute(stmt.elseBranch);
+        else if (null != stmt.elseBranch)
+            execute(stmt.elseBranch);
         return null;
     }
 
@@ -288,35 +342,88 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Object visitCallExpr(Expr.Call expr) {
-        // SHOULD get dispatched to visitVariableExpr (`fun();`) OR callExpr (`fun()();`)
+        // SHOULD get dispatched to:
+        // 1. visitVariableExpr (`fun();`)
+        // 2. OR callExpr (`fun()();`)
+        // 3. OR getExpr (`object.method()`)
         // as checked by Parser.call
         Object callee = evaluate(expr.callee);
-        // TODO: should this be runtime error or compile time?
+        // TODO: should this be a runtime or parse time error?
         if (!(callee instanceof LoxCallable)) {
             throw new RuntimeError(expr.paren, "expression is not callable");
         }
-        // visitVariableExpr will check against variable mapping in the environment, and should return a callable
-        LoxCallable function = (LoxCallable)callee;
+        // visitVariableExpr will check against variable mapping in the environment, and
+        // should return a callable
+        LoxCallable function = (LoxCallable) callee;
         if (expr.arguments.size() != function.arity()) {
-            throw new RuntimeError(expr.paren, "function expected "+function.arity()+" but got "+expr.arguments.size());
+            throw new RuntimeError(expr.paren,
+                    "call expected " + function.arity() + " but got " + expr.arguments.size());
         }
         List<Object> args = new ArrayList<>();
         // args aren't evaluated lazily
         for (Expr arg : expr.arguments) {
             args.add(evaluate(arg));
         }
-        
+
         return function.call(this, args);
     }
 
     @Override
     public Void visitFunStmt(Fun stmt) {
-        environment.define(stmt.name, new LoxFunction(stmt, new Environment(environment)));
+        environment.define(stmt.name, new LoxFunction(stmt, new Environment(environment), false));
         return null;
     }
 
     @Override
     public Void visitReturnStmt(Return stmt) {
         throw new ReturnException(evaluate(stmt.expr));
+    }
+
+    @Override
+    public Void visitClassStmt(Class stmt) {
+        // 2-step declare then define so we can reference the class inside class body
+        // (even if it's undefined, just so function declarations don't trip up)
+        environment.define(stmt.name, null);
+        environment = new Environment(environment);
+        environment.define("this", null);
+
+        Map<String, LoxFunction> methods = new HashMap<>();
+        for (Stmt.Fun method : stmt.methods) {
+            var fun = new LoxFunction(method, new Environment(environment), method.name.lexeme.equals("init"));
+            methods.put(method.name.lexeme, fun);
+        }
+        var klass = new LoxClass(stmt.name.lexeme, methods);
+
+        environment.assign("this", klass);
+        environment = environment.enclosing;
+        environment.assign(stmt.name, klass);
+
+        return null;
+    }
+
+    @Override
+    public Object visitGetExpr(Get expr) {
+        Object left = evaluate(expr.object);
+        if (!(left instanceof LoxInstance)) {
+            throw new RuntimeError(expr.name, "only instances may have properties");
+        }
+        var property = ((LoxInstance) left).get(expr.name);
+        return property;
+    }
+
+    @Override
+    public Object visitSetExpr(Set expr) {
+        Object left = evaluate(expr.object);
+        if (!(left instanceof LoxInstance)) {
+            throw new RuntimeError(expr.name, "only instances may have properties");
+        }
+        var value = evaluate(expr.value);
+        ((LoxInstance) left).set(expr.name, value);
+        return value;
+    }
+
+    @Override
+    public Object visitThisExpr(This expr) {
+        return lookupVariable(expr.keyword, expr);
     }
 }

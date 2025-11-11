@@ -20,7 +20,7 @@ the AST is generated from a string definition and must be regenerated whenever t
 - [ ] interpreter: cast boolean to double for things like `(a == b) * 4`
 - [ ] fully implement ternary expressions (`cond ? branch1 : branch2`)
 - [x] parser with global "level" state, or match error production for extra closing bracket (ex.: `{}}`)\
-- [ ] different synchronization behavior for ';' character when inside for-loop initializer 
+- [ ] different synchronization behavior for ';' character when inside for-loop initializer
 ## ideas
 - [ ] throw some kind of EndOfExpression exception during parsing so we can skip the upward chain of redundant checks when we know the next token (EOF) won't match anything
 - [ ] allow identifiers to start with a number - current valid identifier is `/[a-zA-Z][a-zA-Z0-9]*/` (cursed)

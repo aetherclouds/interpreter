@@ -3,12 +3,14 @@ package lox;
 import java.util.List;
 
 public class LoxFunction implements LoxCallable {
-    Stmt.Fun declaration;
-    Environment closure;
+    final Stmt.Fun declaration;
+    final Environment closure;
+    final boolean isInitializer;
 
-    LoxFunction(Stmt.Fun declaration, Environment closure) {
-        this.closure = closure;
+    LoxFunction(Stmt.Fun declaration, Environment closure, boolean isInitializer) {
         this.declaration = declaration;
+        this.closure = closure;
+        this.isInitializer = isInitializer;
     }
 
     @Override
@@ -18,10 +20,11 @@ public class LoxFunction implements LoxCallable {
 
     @Override
     public Object call(Interpreter interpreter, List<Object> arguments) {
+        Environment environment = new Environment(closure);
         for (int i = 0; i < declaration.params.size(); ++i) {
-            // parameter may already be defined since environment is presisted across
+            // parameter may already be defined since environment is persisted across
             // functoin calls (it's created on function definition)
-            closure.define(declaration.params.get(i), arguments.get(i));
+            environment.define(declaration.params.get(i), arguments.get(i));
         }
         try {
             if (declaration.body instanceof Stmt.Block block) {
@@ -31,14 +34,24 @@ public class LoxFunction implements LoxCallable {
                  * that
                  * in LoxFunction.call, so we'd be creating an extra environment every time.
                  */
-                interpreter.executeBlock(block, closure);
+                interpreter.executeBlock(block, environment);
             } else {
                 interpreter.execute(declaration.body);
             }
         } catch (Interpreter.ReturnException e) {
+            if (isInitializer)
+                return closure.getAt(0, "this");
             return e.obj;
         }
+        if (isInitializer)
+            return closure.getAt(0, "this");
         return null;
+    }
+
+    LoxFunction bind(Object parent) {
+        Environment environment = new Environment(closure);
+        environment.define("this", parent);
+        return new LoxFunction(declaration, environment, this.isInitializer);
     }
 
     @Override

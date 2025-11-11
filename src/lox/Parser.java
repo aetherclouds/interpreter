@@ -29,10 +29,11 @@ public class Parser {
 
     Token advance() {
         // if (!isAtEnd())
-        //     ++current;
+        // ++current;
         // return previous();
         Token ret = peek();
-        if (!isAtEnd()) ++current;
+        if (!isAtEnd())
+            ++current;
         return ret;
     }
 
@@ -73,8 +74,9 @@ public class Parser {
     }
 
     private void synchronize() {
-        if (check(RIGHT_BRACE)) // only time we'll ever find ourselves here is when dealing w/ empty expressions
-            return;
+        // if (check(RIGHT_BRACE)) // only time we'll ever find ourselves here is when
+        // dealing w/ empty expressions
+        // return;
         advance(); // don't match current problematic token in `switch` below
         while (!isAtEnd()) {
             switch (previous().type) {
@@ -113,8 +115,8 @@ public class Parser {
                  * so we have to match
                  * an error production at at least a level above.
                  */
-                if (match(RIGHT_BRACE))
-                    throw error(previous(), "closing unopened brace");
+                // if (match(RIGHT_BRACE))
+                // throw error(previous(), "closing unopened brace");
                 statements.add(declaration());
             }
             return statements;
@@ -143,14 +145,30 @@ public class Parser {
         try {
             if (match(VAR)) {
                 return varDeclaration();
-            } else if (match(FUN)) {
+            }
+            if (match(FUN)) {
                 return function("function");
+            }
+            if (match(CLASS)) {
+                return classDeclaration();
             }
             return statement();
         } catch (ParseError error) {
             synchronize();
             return null;
         }
+    }
+
+    private Stmt.Class classDeclaration() {
+        Token name = consume(IDENTIFIER, "expected identifier in class declaration");
+        consume(LEFT_BRACE, "expected '{' in class declaration");
+        List<Stmt.Fun> methods = new ArrayList<>();
+        while (!check(RIGHT_BRACE) && !isAtEnd()) {
+            // consume(FUN, "expected method declaration inside class body");
+            methods.add(function("method"));
+        }
+        consume(RIGHT_BRACE, "expected '}' at end of class declaration");
+        return new Stmt.Class(name, methods);
     }
 
     private Stmt.Var varDeclaration() {
@@ -162,7 +180,8 @@ public class Parser {
          */
         Token name = consume(IDENTIFIER, "invalid variable declaration target following `var`");
         // if (!(name instanceof Expr.Variable)) {
-        //     throw error(previous(), "invalid variable declaration target following `var`");
+        // throw error(previous(), "invalid variable declaration target following
+        // `var`");
         // }
         Expr initializer = null;
         if (match(EQUAL)) {
@@ -173,18 +192,20 @@ public class Parser {
     }
 
     private Stmt.Fun function(String kind) {
-        Token name = consume(IDENTIFIER, "invalid "+kind+" declaration target following `var`");
-        consume(LEFT_PAREN, "expected '(' in "+kind+" declaration");
+        Token name = consume(IDENTIFIER, "invalid " + kind + " declaration target following `fun`");
+        consume(LEFT_PAREN, "expected '(' in " + kind + " declaration");
         List<Token> params = new ArrayList<>();
         if (!match(RIGHT_PAREN)) {
-            for(;;) {
-                params.add(consume(IDENTIFIER, "expected parameter on "+kind+" signature"));
-                if (params.size() > 254) throw error(peek(), "exceeded max. "+kind+" parameter count (255)");
-                if (match(RIGHT_PAREN)) break;
-                consume(COMMA, "expected ',' after "+kind+" parameter, or ')'");
+            for (;;) {
+                params.add(consume(IDENTIFIER, "expected parameter on " + kind + " signature"));
+                if (params.size() > 254)
+                    throw error(peek(), "exceeded max. " + kind + " parameter count (255)");
+                if (match(RIGHT_PAREN))
+                    break;
+                consume(COMMA, "expected ',' after " + kind + " parameter, or ')'");
             }
         }
-        
+
         Stmt body = statement();
         return new Stmt.Fun(name, params, body);
     }
@@ -196,12 +217,12 @@ public class Parser {
         // TODO: check if inside loop?
         if (match(CONTINUE)) {
             Token stmt = previous();
-            consume(SEMICOLON, "expected ';' instead, after print statement");
+            consume(SEMICOLON, "expected ';' instead, after continue statement");
             return new Stmt.Continue(stmt);
         }
         if (match(BREAK)) {
             Token stmt = previous();
-            consume(SEMICOLON, "expected ';' instead, after print statement");
+            consume(SEMICOLON, "expected ';' instead, after break statement");
             return new Stmt.Break(stmt);
         }
         if (match(PRINT)) {
@@ -293,7 +314,7 @@ public class Parser {
         }
         return stmts;
     }
- 
+
     private Stmt.Expression expressionStatement() {
         Expr value = expression();
         consume(SEMICOLON, "expected ';' instead, after statement");
@@ -327,13 +348,17 @@ public class Parser {
         if (match(EQUAL)) {
             Token equal = previous();
             // filters out, for ex.: `50 = 49;` `(x) = 5;`
-            // doesn't filter out `a == b = c;` for ex. because that is allowed; assignment is an expression
-            if (!(expr instanceof Expr.Variable)) {
-                throw error(equal, "invalid assignment target");
-            }
+            // doesn't filter out `a == b = c;` for ex. because that is allowed; assignment
+            // is an expression
             Expr value = assignment();
+            if (expr instanceof Expr.Variable) {
+                return new Expr.Assignment(((Expr.Variable) expr).name, value);
+            } else if (expr instanceof Expr.Get) {
+                Expr.Get get = (Expr.Get) expr;
+                return new Expr.Set(get.object, get.name, value);
+            }
 
-            return new Expr.Assignment(((Expr.Variable) expr).name, value);
+            throw error(equal, "invalid assignment target");
         }
         return expr;
     }
@@ -394,29 +419,38 @@ public class Parser {
 
     private Expr call() {
         Expr expr = primary();
-        while (match(LEFT_PAREN)) {
-            // if (!(expr instanceof Expr.Variable || expr instanceof Expr.Call))
-            //     throw error(previous(), "expression is not callable");
-            Token paren = null;
-            List<Expr> args = new ArrayList<>();
-            if (!match(RIGHT_PAREN)) {
-                for (;;) {
-                    args.add(expression());
-                    if (args.size() > 254) throw error(peek(), "exceeded max. call argument count (255)");
-                    if (match(RIGHT_PAREN)) break;
-                    consume(COMMA, "call arguments must be separated by a ','");
+        while (true) {
+            if (match(LEFT_PAREN)) {
+                // if (!(expr instanceof Expr.Variable || expr instanceof Expr.Call))
+                // throw error(previous(), "expression is not callable");
+                Token paren = null;
+                List<Expr> args = new ArrayList<>();
+                if (!match(RIGHT_PAREN)) {
+                    for (;;) {
+                        args.add(expression());
+                        if (args.size() > 254)
+                            throw error(peek(), "exceeded max. call argument count (255)");
+                        if (match(RIGHT_PAREN))
+                            break;
+                        consume(COMMA, "call arguments must be separated by a ','");
+                    }
                 }
-            }
-            paren = previous();
-            expr = new Expr.Call(expr, args, paren/*thesis*/);
+                paren = previous();
+                expr = new Expr.Call(expr, args, paren/* thesis */);
+            } else if (match(DOT)) {
+                Token name = consume(IDENTIFIER, "expected property name after '.'");
+                expr = new Expr.Get(expr, name);
+            } else
+                break;
         }
         return expr;
     }
 
     private Expr primary() {
         if (match(IDENTIFIER))
-            return new Expr.Variable(previous()); // on assigments, this should be the only thing that's returned from
-                                                  // the left-side
+            return new Expr.Variable(previous());
+        if (match(THIS))
+            return new Expr.This(previous());
         if (match(
                 BANG, MINUS, SLASH, STAR, PLUS, MINUS,
                 GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, BANG_EQUAL, EQUAL_EQUAL))
