@@ -147,7 +147,7 @@ public class Parser {
                 return varDeclaration();
             }
             if (match(FUN)) {
-                return function("function");
+                return function(FunctionKind.FUNCTION);
             }
             if (match(CLASS)) {
                 return classDeclaration();
@@ -164,8 +164,11 @@ public class Parser {
         consume(LEFT_BRACE, "expected '{' in class declaration");
         List<Stmt.Fun> methods = new ArrayList<>();
         while (!check(RIGHT_BRACE) && !isAtEnd()) {
-            // consume(FUN, "expected method declaration inside class body");
-            methods.add(function("method"));
+            if (match(CLASS)) {
+                methods.add(function(FunctionKind.STATIC));
+            } else {
+                methods.add(function(FunctionKind.METHOD));
+            }
         }
         consume(RIGHT_BRACE, "expected '}' at end of class declaration");
         return new Stmt.Class(name, methods);
@@ -191,23 +194,36 @@ public class Parser {
         return new Stmt.Var(name, initializer);
     }
 
-    private Stmt.Fun function(String kind) {
-        Token name = consume(IDENTIFIER, "invalid " + kind + " declaration target following `fun`");
-        consume(LEFT_PAREN, "expected '(' in " + kind + " declaration");
-        List<Token> params = new ArrayList<>();
-        if (!match(RIGHT_PAREN)) {
-            for (;;) {
-                params.add(consume(IDENTIFIER, "expected parameter on " + kind + " signature"));
-                if (params.size() > 254)
-                    throw error(peek(), "exceeded max. " + kind + " parameter count (255)");
-                if (match(RIGHT_PAREN))
-                    break;
-                consume(COMMA, "expected ',' after " + kind + " parameter, or ')'");
-            }
-        }
+    private enum FunctionKind {
+        STATIC("static method"), METHOD("method"), FUNCTION("function");
 
+        private final String repr;
+
+        private FunctionKind(String kind) {
+            this.repr = kind;
+        }
+    }
+
+    private Stmt.Fun function(FunctionKind kind) {
+        Token name = consume(IDENTIFIER, "invalid " + kind.repr + " declaration target following `fun`");
+        List<Token> params = new ArrayList<>();
+        boolean isGetter = false;
+        if (match(LEFT_PAREN)) {
+            if (!match(RIGHT_PAREN)) {
+                for (;;) {
+                    params.add(consume(IDENTIFIER, "expected parameter on " + kind.repr + " signature"));
+                    if (params.size() > 254)
+                        throw error(peek(), "exceeded max. " + kind.repr + " parameter count (255)");
+                    if (match(RIGHT_PAREN))
+                        break;
+                    consume(COMMA, "expected ',' after " + kind.repr + " parameter, or ')'");
+                }
+            }
+        } else {
+            isGetter = true;
+        }
         Stmt body = statement();
-        return new Stmt.Fun(name, params, body);
+        return new Stmt.Fun(name, params, body, kind == FunctionKind.STATIC, isGetter);
     }
 
     private Stmt statement() {

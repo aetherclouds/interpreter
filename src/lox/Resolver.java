@@ -19,6 +19,7 @@ public class Resolver implements Expr.Visitor<Void>,
         NONE,
         FUNCTION,
         METHOD,
+        STATICMETHOD,
         INITIALIZER,
     }
 
@@ -185,14 +186,21 @@ public class Resolver implements Expr.Visitor<Void>,
 
     private void resolveFunction(Stmt.Fun fun, FunctionType functionType) {
         beginScope();
-        this.scopes.peek().put("this", true);
         for (var param : fun.params) {
             declare(param);
             define(param);
         }
         var previousFunction = this.currentFunction;
         this.currentFunction = functionType;
-        resolve(fun.body);
+        if (fun.body instanceof Stmt.Block) {
+            // ugly fix
+            // because visitBlockStmt will create a scope and that doesn't align with the
+            // interpreter's behavior, we'll just run the block's statements right here
+            for (Stmt stmt : ((Stmt.Block) fun.body).statements) {
+                resolve(stmt);
+            }
+        } else
+            resolve(fun.body);
         this.currentFunction = previousFunction;
         endScope();
     }
@@ -254,9 +262,10 @@ public class Resolver implements Expr.Visitor<Void>,
         define(stmt.name);
 
         beginScope();
-
+        this.scopes.peek().put("this", true);
         for (Stmt.Fun method : stmt.methods) {
-            var functionType = method.name.lexeme.equals("init") ? FunctionType.INITIALIZER : FunctionType.METHOD;
+            var functionType = method.isStatic ? FunctionType.STATICMETHOD
+                    : method.name.lexeme.equals("init") ? FunctionType.INITIALIZER : FunctionType.METHOD;
             resolveFunction(method, functionType);
         }
         endScope();
@@ -274,8 +283,8 @@ public class Resolver implements Expr.Visitor<Void>,
 
     @Override
     public Void visitSetExpr(Expr.Set expr) {
-        resolve(expr.object);
         resolve(expr.value);
+        resolve(expr.object);
         return null;
     }
 
@@ -283,6 +292,10 @@ public class Resolver implements Expr.Visitor<Void>,
     public Void visitThisExpr(This expr) {
         if (currentClass == ClassType.NONE) {
             Lox.error(expr.keyword, "'this' can't be used outside of a class");
+            return null;
+        }
+        if (currentFunction == FunctionType.STATICMETHOD) {
+            Lox.error(expr.keyword, "'this' can't be used in a static method");
             return null;
         }
         resolveLocal(expr, expr.keyword);

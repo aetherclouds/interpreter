@@ -25,10 +25,10 @@ public class Environment {
     }
 
     void assign(Token name, Object value) {
-        if (!values.containsKey(name.lexeme)) {
+            if (!values.containsKey(name.lexeme)) {
             if (null != enclosing) {
                 enclosing.assign(name, value);
-                return;
+                return; 
             }
             throw new RuntimeError(name, "identifier doesn't exist");
         }
@@ -48,8 +48,7 @@ public class Environment {
 
     Object get(Token name) {
         if (!values.containsKey(name.lexeme)) {
-            // if (null != enclosing) return enclosing.get(name);
-            throw new RuntimeError(name, "identifier doesn't exist");
+            if (null != enclosing) return enclosing.get(name);
         }
         return values.get(name.lexeme);
     }

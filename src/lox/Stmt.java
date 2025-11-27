@@ -119,10 +119,14 @@ abstract class Stmt {
         final Token name;
         final List<Token> params;
         final Stmt body;
-        Fun(Token name, List<Token> params, Stmt body) {
+        final boolean isStatic;
+        final boolean isGetter;
+        Fun(Token name, List<Token> params, Stmt body, boolean isStatic, boolean isGetter) {
             this.name = name;
             this.params = params;
             this.body = body;
+            this.isStatic = isStatic;
+            this.isGetter = isGetter;
         }
         @Override
         <R> R accept(Visitor<R> visitor) {

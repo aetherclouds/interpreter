@@ -33,7 +33,7 @@ class GenerateAst {
             "Break      : Token token",
             // declarations
             "Var        : Token name, Expr initializer",
-            "Fun        : Token name, List<Token> params, Stmt body",
+            "Fun        : Token name, List<Token> params, Stmt body, boolean isStatic, boolean isGetter",
             "Return     : Token keyword, Expr expr",
             "Class      : Token name, List<Stmt.Fun> methods",
         });

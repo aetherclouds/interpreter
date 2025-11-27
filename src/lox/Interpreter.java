@@ -370,7 +370,7 @@ public class Interpreter implements Expr.Visitor<Object>,
 
     @Override
     public Void visitFunStmt(Fun stmt) {
-        environment.define(stmt.name, new LoxFunction(stmt, new Environment(environment), false));
+        environment.define(stmt.name, new LoxFunction(stmt, environment, false, false, false));
         return null;
     }
 
@@ -382,20 +382,31 @@ public class Interpreter implements Expr.Visitor<Object>,
     @Override
     public Void visitClassStmt(Class stmt) {
         // 2-step declare then define so we can reference the class inside class body
-        // (even if it's undefined, just so function declarations don't trip up)
+        // (even if it's undefined, just so function declarations can reference `this`)
         environment.define(stmt.name, null);
-        environment = new Environment(environment);
-        environment.define("this", null);
+        // environment = new Environment(environment);
+        // don't handle `this` here anymore because binding does it instead
+        // environment.define("this", null);
 
         Map<String, LoxFunction> methods = new HashMap<>();
+        Map<String, LoxFunction> staticMethods = new HashMap<>();
         for (Stmt.Fun method : stmt.methods) {
-            var fun = new LoxFunction(method, new Environment(environment), method.name.lexeme.equals("init"));
-            methods.put(method.name.lexeme, fun);
-        }
-        var klass = new LoxClass(stmt.name.lexeme, methods);
+            var isConstructor = method.name.lexeme.equals("init");
+            if (isConstructor && method.isStatic) {
+                throw new RuntimeError(method.name, "constructor may not be static");
+            }
+            var fun = new LoxFunction(method, environment, isConstructor, method.isStatic, method.isGetter);
+            if (method.isStatic) {
+                staticMethods.put(method.name.lexeme, fun);
+            } else {
 
-        environment.assign("this", klass);
-        environment = environment.enclosing;
+                methods.put(method.name.lexeme, fun);
+            }
+        }
+        var klass = new LoxClass(stmt.name.lexeme, methods, staticMethods);
+
+        // environment.assign("this", klass);
+        // environment = environment.enclosing;
         environment.assign(stmt.name, klass);
 
         return null;
@@ -408,6 +419,9 @@ public class Interpreter implements Expr.Visitor<Object>,
             throw new RuntimeError(expr.name, "only instances may have properties");
         }
         var property = ((LoxInstance) left).get(expr.name);
+        if (property instanceof LoxFunction && ((LoxFunction)property).isGetter) {
+            return ((LoxFunction)property).call(this, null);
+        }
         return property;
     }
 
